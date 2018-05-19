@@ -91,7 +91,16 @@ class KnowledgeGraph:
                 "sex":"student:学生性别",
                 "email":"student:学生邮件地址",
                 "school":"student:学生学校"
-            }
+            },
+            "hasChildNode":"basic:hasChildNode",
+            "hasParentNode":"basic:hasParentNode",
+            "hasParallelNode":"basic:hasParallelNode",
+            "hasBrotherNode":"basic:hasBrotherNode",
+            "hasRelyOnNode":"basic:hasRelyOnNode",
+            "hasBeRelyByNode":"basic:hasBeRelyByNode",
+            "hasNextNode":"basic:hasNextNode",
+            "hasPrevNode":"basic:hasPrevNode",
+            "hasSynonymNode":"basic:hasSynonymNode",
         }
 
     def parse_data_group(self, data_type, data_group):
@@ -698,3 +707,34 @@ class KnowledgeGraph:
             return True
         else:
             return False
+
+    def connect_knowledges(self, knowledge_id, kIds, type):
+
+        sqlstr_INSERT = """
+               INSERT DATA{
+               teacher:%s basic:hasCreateKnowledge knowledge:%s.
+               }
+               """ % (knowledge_id, knowledge_id)
+        self.sparql.setMethod(POST)
+        self.sparql.setQuery(self.sqlstr_PREFIX + sqlstr_INSERT)  # 这一步编辑查询语句
+        result = self.sparql.query().convert().decode("utf-8")  # 通过HTTP向SPARQL终端"http://localhost:3030/mathdb/query"发起
+        if "Success" in result:
+            return True
+        else:
+            return False
+
+    def request(self,request_str, type):
+        self.sparql.setMethod(POST)
+        self.sparql.setQuery(request_str)
+        result = self.sparql.query().convert().decode("utf-8")
+        if type == 'insert':
+            if "Success" in result:
+                return True
+            else:
+                return False
+        elif type == 'search':
+            return result
+
+
+
+
