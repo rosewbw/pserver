@@ -42,6 +42,7 @@ class KnowledgeGraph:
                 "difficulty": "knowledge:难度系数",
                 "importance": "knowledge:重要程度",
                 "description": "knowledge:描述信息",
+
             },
             # 资源
             "material": {
@@ -82,28 +83,31 @@ class KnowledgeGraph:
                 "studentNum": "teacher: 教师学生人数",
                 "name": "teacher:教师姓名",
                 "sex": "teacher:教师性别",
-                "expertCourse":"teacher:教师擅长课程",
-                "age":"teacher:教师年龄"
+                "expertCourse": "teacher:教师擅长课程",
+                "age": "teacher:教师年龄"
             },
-            "student":{
-                "name":"student:学生姓名",
-                "age":"student:学生年龄",
-                "sex":"student:学生性别",
-                "email":"student:学生邮件地址",
-                "school":"student:学生学校"
+            "student": {
+                "name": "student:学生姓名",
+                "age": "student:学生年龄",
+                "sex": "student:学生性别",
+                "email": "student:学生邮件地址",
+                "school": "student:学生学校"
             },
-            "hasChildNode":"basic:hasChildNode",
-            "hasParentNode":"basic:hasParentNode",
-            "hasParallelNode":"basic:hasParallelNode",
-            "hasBrotherNode":"basic:hasBrotherNode",
-            "hasRelyOnNode":"basic:hasRelyOnNode",
-            "hasBeRelyByNode":"basic:hasBeRelyByNode",
-            "hasNextNode":"basic:hasNextNode",
-            "hasPrevNode":"basic:hasPrevNode",
-            "hasSynonymNode":"basic:hasSynonymNode",
+            "relationship": {
+                "hasChildNode": "basic:hasChildNode",
+                "hasParentNode": "basic:hasParentNode",
+                "hasParallelNode": "basic:hasParallelNode",
+                "hasBrotherNode": "basic:hasBrotherNode",
+                "hasRelyOnNode": "basic:hasRelyOnNode",
+                "hasBeRelyByNode": "basic:hasBeRelyByNode",
+                "hasNextNode": "basic:hasNextNode",
+                "hasPrevNode": "basic:hasPrevNode",
+                "hasSynonymNode": "basic:hasSynonymNode",
+                "hasRelateNode": "basic:hasRelateNode",
+            }
         }
 
-    def parse_data_group(self, data_type, data_group):
+    def parse_data_property(self, data_type, data_group):
         sqlstr_DATA = ''
         if 'id' in data_group.keys():
             _id = data_group["id"]
@@ -129,9 +133,25 @@ class KnowledgeGraph:
         else:
             return False
 
+    def parse_object_property(self, data_group):
+        sqlstr_DATA = ''
+        if 'id' in data_group.keys():
+            _id = data_group["id"]
+            for key in data_group.keys():
+                if key in self.data_predicate['relationship']:
+                    if len(data_group[key]) != 0:
+                        for item in data_group[key]:
+                            sqlstr_DATA += 'knowledge:{id} {data_predicate} knowledge:{item}.\n'.format(
+                                id=_id,
+                                data_predicate=self.data_predicate['relationship'][key],
+                                item=item
+                            )
+
+        return sqlstr_DATA
+
     # 创建资源的实例
     def create_material_instance(self, data_group):  # data_group={名称、位置、关键字、描述、类型、id}
-        sqlstr_INSERT_DATA_BASE = self.parse_data_group('material', data_group)
+        sqlstr_INSERT_DATA_BASE = self.parse_data_property('material', data_group)
         sqlstr_INSERT_DATA = 'material:{id} a  owl:NamedIndividual.\
                     material:{id} a basic:视频.\
                     material:{id} material:资源位置 \"{url}\".\
@@ -167,10 +187,10 @@ class KnowledgeGraph:
                             knowledge:{id} a basic:知识点.\n'.format(
             id=data_group["id"]
         )
-        sqlstr_INSERT_DATA_BASE += self.parse_data_group('knowledge', data_group)
-
+        sqlstr_INSERT_DATA_BASE += self.parse_data_property('knowledge', data_group)
+        synonym = ""
         if len(data_group["synonym"]) != 0:
-            synonym = ""
+
             for item in data_group["synonym"]:
                 synonym += 'knowledge:{id}  knowledge:同义词 \"{synonym}\". '.format(
                     id=data_group["id"],
@@ -207,17 +227,12 @@ class KnowledgeGraph:
 
     # 创建教学单元实例
     def create_teach_instance(self, data_group):  # data_group={名称、位置、关键字、描述、类型、id}
-        sqlstr_INSERT_DATA = 'teach:{id} a  owl:NamedIndividual.\
-                    teach:{id} a basic:教学单元.\
-                    teach:{id} teach:教学单元关键字 \"{keyword}\".\
-                    teach:{id} teach:教学单元描述 \"{description}\".\
-                    teach:{id} teach:教学单元名称 \"{title}\".'.format(
+        sqlstr_INSERT_DATA_BASE = self.parse_data_property('teach', data_group)
+        sqlstr_INSERT_DATA_BASE += 'teach:{id} a  owl:NamedIndividual.\
+                    teach:{id} a basic:教学单元.'.format(
             id=data_group["id"],
-            keyword=data_group["keyword"],
-            description=data_group["description"],
-            title=data_group["title"]
         )
-        sqlstr_INSERT = 'INSERT DATA{' + sqlstr_INSERT_DATA + "}"
+        sqlstr_INSERT = 'INSERT DATA{' + sqlstr_INSERT_DATA_BASE + "}"
         self.sparql.setMethod(POST)
         self.sparql.setQuery(self.sqlstr_PREFIX + sqlstr_INSERT)  # 这一步编辑查询语句
         result = self.sparql.query().convert().decode("utf-8")  # 通过HTTP向SPARQL终端"http://localhost:3030/mathdb/query"发起
@@ -229,7 +244,7 @@ class KnowledgeGraph:
     # 创建课时实例
     def create_course_instance(self, data_group):  # data_group={名称、位置、关键字、描述、类型、id}
 
-        sqlstr_INSERT_DATA_BASE = self.parse_data_group('course', data_group)
+        sqlstr_INSERT_DATA_BASE = self.parse_data_property('course', data_group)
         # course: {id}
         # course: 课时典型学习时间 \"{typicalLearningTime}\".\
         # typicalLearningTime = data_group["typicalLearningTime"],
@@ -385,20 +400,6 @@ class KnowledgeGraph:
         else:
             return False
 
-    def remove_teach_from_knowledge(self, knowledge_id, teach_id):
-        sqlstr_DELETE = """
-        DELETE {
-        knowledge:%s basic:hasTeach teach:%s.
-        }
-        """ % (knowledge_id, teach_id)
-        self.sparql.setMethod(POST)
-        self.sparql.setQuery(self.sqlstr_PREFIX + sqlstr_DELETE)  # 这一步编辑查询语句
-        result = self.sparql.query().convert().decode("utf-8")  # 通过HTTP向SPARQL终端"http://localhost:3030/mathdb/query"发起
-        if "Success" in result:
-            return True
-        else:
-            return False
-
     def add_course_to_teach(self, teach_id, course_id, course_type):
         # 主课时
         if course_type == 'main':
@@ -422,29 +423,6 @@ class KnowledgeGraph:
         else:
             return False
 
-    def remove_course_from_teach(self, teach_id, course_id, course_type):
-        # 主课时
-        if course_type == 'main':
-            sqlstr_DELETE = """
-            DELETE{
-            teach:%s basic:hasMCourse course:%s.
-            }
-            """ % (teach_id, course_id)
-            # 辅课时
-        else:
-            sqlstr_DELETE = """
-                    DELETE{
-                    teach:%s basic:hasACourse course:%s.
-                    }
-                    """ % (teach_id, course_id)
-        self.sparql.setMethod(POST)
-        self.sparql.setQuery(self.sqlstr_PREFIX + sqlstr_DELETE)  # 这一步编辑查询语句
-        result = self.sparql.query().convert().decode("utf-8")  # 通过HTTP向SPARQL终端"http://localhost:3030/mathdb/query"发起
-        if "Success" in result:
-            return True
-        else:
-            return False
-
     def add_material_to_course(self, course_id, material_id):
         sqlstr_INSERT = """
         INSERT DATA{
@@ -453,20 +431,6 @@ class KnowledgeGraph:
         """ % (course_id, material_id)
         self.sparql.setMethod(POST)
         self.sparql.setQuery(self.sqlstr_PREFIX + sqlstr_INSERT)  # 这一步编辑查询语句
-        result = self.sparql.query().convert().decode("utf-8")  # 通过HTTP向SPARQL终端"http://localhost:3030/mathdb/query"发起
-        if "Success" in result:
-            return True
-        else:
-            return False
-
-    def remove_material_from_course(self, course_id, material_id):
-        sqlstr_DELETE = """
-        DELETE {
-        course:%s basic:hasMaterial material:%s.
-        }
-        """ % (course_id, material_id)
-        self.sparql.setMethod(POST)
-        self.sparql.setQuery(self.sqlstr_PREFIX + sqlstr_DELETE)  # 这一步编辑查询语句
         result = self.sparql.query().convert().decode("utf-8")  # 通过HTTP向SPARQL终端"http://localhost:3030/mathdb/query"发起
         if "Success" in result:
             return True
@@ -546,9 +510,12 @@ class KnowledgeGraph:
     def remove_lesson_from_teacher(self, teacher_id, lesson_id):
         sqlstr_DELETE = """
         DELETE{
-        teacher:%s basic:hasCreateLesson lesson:%s.
+            teacher:%s basic:hasCreateLesson lesson:%s.
         }
-        """ % (teacher_id, lesson_id)
+        WHERE{
+            teacher:%s basic:hasCreateLesson lesson:%s.
+               }
+        """ % (teacher_id, lesson_id, teacher_id, lesson_id)
         self.sparql.setMethod(POST)
         self.sparql.setQuery(self.sqlstr_PREFIX + sqlstr_DELETE)  # 这一步编辑查询语句
         result = self.sparql.query().convert().decode("utf-8")  # 通过HTTP向SPARQL终端"http://localhost:3030/mathdb/query"发起
@@ -574,9 +541,12 @@ class KnowledgeGraph:
     def remove_teach_from_teacher(self, teacher_id, teach_id):
         sqlstr_DELETE = """
         DELETE{
-        teacher:%s basic:hasCreateTeach teach:%s.
+            teacher:%s basic:hasCreateTeach teach:%s.
         }
-        """ % (teacher_id, teach_id)
+        WHERE{
+            teacher:%s basic:hasCreateTeach teach:%s.
+               }
+        """ % (teacher_id, teach_id, teacher_id, teach_id)
         self.sparql.setMethod(POST)
         self.sparql.setQuery(self.sqlstr_PREFIX + sqlstr_DELETE)  # 这一步编辑查询语句
         result = self.sparql.query().convert().decode("utf-8")  # 通过HTTP向SPARQL终端"http://localhost:3030/mathdb/query"发起
@@ -599,12 +569,15 @@ class KnowledgeGraph:
         else:
             return False
 
-    def remove_lesson_to_student(self, student_id, lesson_id):
+    def remove_lesson_from_student(self, student_id, lesson_id):
         sqlstr_DELETE = """
         DELETE{
-        student:%s basic:hasLearningLesson lesson:%s.
+            student:%s basic:hasLearningLesson lesson:%s.
         }
-        """ % (student_id, lesson_id)
+        WHERE{
+            student:%s basic:hasLearningLesson lesson:%s.
+               }
+        """ % (student_id, lesson_id, student_id, lesson_id)
         self.sparql.setMethod(POST)
         self.sparql.setQuery(self.sqlstr_PREFIX + sqlstr_DELETE)  # 这一步编辑查询语句
         result = self.sparql.query().convert().decode("utf-8")  # 通过HTTP向SPARQL终端"http://localhost:3030/mathdb/query"发起
@@ -632,7 +605,10 @@ class KnowledgeGraph:
         DELETE{
         teacher:%s basic:hasCreateKnowledge knowledge:%s.
         }
-        """ % (teacher_id, knowledge_id)
+        WHERE{
+        teacher:%s basic:hasCreateKnowledge knowledge:%s.
+        }
+        """ % (teacher_id, knowledge_id, teacher_id, knowledge_id)
         self.sparql.setMethod(POST)
         self.sparql.setQuery(self.sqlstr_PREFIX + sqlstr_DELETE)  # 这一步编辑查询语句
         result = self.sparql.query().convert().decode("utf-8")  # 通过HTTP向SPARQL终端"http://localhost:3030/mathdb/query"发起
@@ -658,9 +634,12 @@ class KnowledgeGraph:
     def remove_course_from_teacher(self, teacher_id, course_id):
         sqlstr_DELETE = """
         DELETE{
-        teacher:%s basic:hasCreateCourse course:%s.
+            teacher:%s basic:hasCreateCourse course:%s.
         }
-        """ % (teacher_id, course_id)
+         WHERE{
+            teacher:%s basic:hasCreateCourse course:%s.
+               }
+        """ % (teacher_id, course_id, teacher_id, course_id)
         self.sparql.setMethod(POST)
         self.sparql.setQuery(self.sqlstr_PREFIX + sqlstr_DELETE)  # 这一步编辑查询语句
         result = self.sparql.query().convert().decode("utf-8")  # 通过HTTP向SPARQL终端"http://localhost:3030/mathdb/query"发起
@@ -723,18 +702,119 @@ class KnowledgeGraph:
         else:
             return False
 
-    def request(self,request_str, type):
+    def sparql_request(self, request_str, type):
         self.sparql.setMethod(POST)
         self.sparql.setQuery(request_str)
         result = self.sparql.query().convert().decode("utf-8")
-        if type == 'insert':
+        if type == 'insert' or type == 'delete':
             if "Success" in result:
                 return True
             else:
                 return False
-        elif type == 'search':
+        elif type == 'retrieved':
             return result
 
+    def remove_instance(self, instance_id, instance_type):
+        sqlstr_DELETE = """
+               DELETE {
+                   %s:%s ?property  ?data.
+               }
+               WHERE{
+                    %s:%s ?property  ?data.
+               }
+               """ % (instance_type, instance_id, instance_type, instance_id)
+        if self.sparql_request(self.sqlstr_PREFIX + sqlstr_DELETE, 'delete'):
+            return True
+        else:
+            return False
 
+    def delete_graph_data(self, data_group):
+        # 删除课程数据
+        lesson_id = data_group["_id"]
+        userid = data_group['userId']
+        self.remove_instance(lesson_id, 'lesson')
+        self.remove_lesson_from_teacher(userid, lesson_id)
+        # 删除知识点数据
+        knowledge_data = data_group["data"]
+        for item in knowledge_data:
+            knowledge_id = item['id']
+            self.remove_instance(knowledge_id, 'knowledge')
+            self.remove_knowledge_from_teacher(userid, knowledge_id)
+            # 删除教学单元数据
+            teach_data = item['teachUnit']
+            self.remove_instance(teach_data["id"], 'teach')
+            self.remove_teach_from_teacher(userid, teach_data["id"])
+            # 删除主课时数据
+            mainCourse_data = teach_data["mCourseUnit"]
+            if mainCourse_data:
+                self.remove_instance(mainCourse_data["id"], 'course')
+                self.remove_course_from_teacher(userid, mainCourse_data["id"])
+            aidCouse_data = teach_data["aCourseUnit"]
+            if aidCouse_data:
+                for ac in aidCouse_data:
+                    self.remove_instance(ac["id"], 'course')
+                    self.remove_course_from_teacher(userid, ac["id"])
+        return "success"
 
+    def add_root_knowledge_to_lesson(self, lesson_id, knowledge_id):
+        sqlstr_INSERT = """
+           INSERT DATA{
+           lesson:%s basic:hasRootKnowledge knowledge:%s.
+           }
+           """ % (lesson_id, knowledge_id)
+        self.sparql.setMethod(POST)
+        self.sparql.setQuery(self.sqlstr_PREFIX + sqlstr_INSERT)  # 这一步编辑查询语句
+        result = self.sparql.query().convert().decode("utf-8")  # 通过HTTP向SPARQL终端"http://localhost:3030/mathdb/query"发起
+        if "Success" in result:
+            return True
+        else:
+            return False
 
+    def add_object_property(self, data_group):
+        sqlstr_INSERT_DATA = self.parse_object_property(data_group)
+        sqlstr_INSERT = 'INSERT DATA{' + sqlstr_INSERT_DATA + "}"
+        self.sparql.setMethod(POST)
+        self.sparql.setQuery(self.sqlstr_PREFIX + sqlstr_INSERT)  # 这一步编辑查询语句
+        result = self.sparql.query().convert().decode("utf-8")  # 通过HTTP向SPARQL终端"http://localhost:3030/mathdb/query"发起
+        if "Success" in result:
+            return True
+        else:
+            return False
+
+    def add_graph_data(self, data_group):
+        lesson_data = data_group
+        userid = lesson_data["userId"]
+        self.create_lesson_instance(lesson_data)
+        # 添加知识点实例
+        knowledge_data = lesson_data["data"]
+        for k in knowledge_data:
+            if k["root"] == True:
+                self.add_root_knowledge_to_lesson(lesson_data["_id"], k["id"])
+            self.create_knowledge_instance(k)
+            self.add_knowledge_to_lesson(lesson_data["_id"], k["id"])
+            self.add_knowledge_to_teacher(userid, k["id"])
+            self.add_object_property(k)
+            # 添加教学单元
+            teach = k["teachUnit"]
+            self.create_teach_instance(teach)
+            self.add_teach_to_knowledge(k["id"], teach["id"])
+            self.add_teach_to_teacher(userid, teach["id"])
+            # 添加主课时
+            mCourse = teach["mCourseUnit"]
+            if mCourse:
+                self.create_course_instance(mCourse)
+                self.add_course_to_teach(teach["id"], mCourse["id"], mCourse["type"])
+                self.add_course_to_teacher(userid, mCourse["id"])
+                material = mCourse["material"]
+                if material:
+                    self.add_material_to_course(mCourse["id"], material["_id"])
+            # 添加辅课时
+            aCourse = teach["aCourseUnit"]
+            if aCourse:
+                for ac in aCourse:
+                    self.create_course_instance(ac)
+                    self.add_course_to_teach(teach["id"], ac["id"], ac["type"])
+                    self.add_course_to_teacher(userid, ac["id"])
+                    material = ac["material"]
+                    if material:
+                        self.add_material_to_course(ac["id"], material["_id"])
