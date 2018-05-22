@@ -3,6 +3,7 @@ from retrieved.tree import Node
 
 
 class SearchOperate:
+    # SearchOperate 用于语义相似度的计算
     def __init__(self, kg_name, root_knowledge_id):
         self.sqlstr_PREFIX = """
         PREFIX : <http://www.semanticweb.org/wbw/ontologies/2018/4/basic#> 
@@ -54,7 +55,6 @@ class SearchOperate:
                 """ % (node, search_type)
         result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)  # 这一步编辑查询语句
         return result
-
 
     def search_request(self, search_query):
         self.sparql.setQuery(search_query)  # 这一步编辑查询语句
@@ -171,9 +171,8 @@ class SearchOperate:
     def calculate_sim(self, node1, extend_ndoes):
         result = []
         result.append({
-            'n1': node1.get_value(),
-            'n2': node1.get_value(),
-            'sim': 1
+            'knowledge_id': node1.get_value(),
+            'similarity': 1
         })
         for node in extend_ndoes:
             children = extend_ndoes[node]["child"]
@@ -182,13 +181,13 @@ class SearchOperate:
             else:
                 if node == "brother" or node == "synonym":
                     for child in children:
-                        if node1.get_value() == child:
+                        if node1.get_value() == child["knowledge_id"]:
                             continue
                         else:
                             temp = {}
                             temp.setdefault("n1", node1.get_value())
-                            temp.setdefault("n2", child)
-                            n2 = self.get_tree_node(child)
+                            temp.setdefault("n2", child["knowledge_id"])
+                            n2 = self.get_tree_node(child["knowledge_id"])
                             sim = self.calculate_sim_distance(node1, n2) * 0.7 + 0.5 * 0.3
                             if sim >= 0.8:
                                 temp.setdefault("sim", sim)
@@ -207,12 +206,11 @@ class SearchOperate:
     def calculate_sim_func(self, result, node1, nodes, degree):
         for child in nodes:
             temp = {}
-            temp.setdefault("n1", node1.get_value())
-            temp.setdefault("n2", child["value"])
+            temp.setdefault("knowledge_id", child["value"])
             n2 = self.get_tree_node(child["value"])
             sim = self.calculate_sim_distance(node1, n2) * 0.7 + pow(degree, child["depth"]) * 0.3
             if sim >= 0.8:
-                temp.setdefault("sim", sim)
+                temp.setdefault("similarity", sim)
                 result.append(temp)
             if len(child) == 3:
                 self.calculate_sim_func(result, node1, child["child"], degree)
@@ -254,14 +252,18 @@ class SearchOperate:
 
     def extend_synonym_node(self, node):
         result = {}
-        results = self.search_node(node.get_value(), "hasSynonymNode")
+        results = []
+        for item in self.search_node(node.get_value(), "hasSynonymNode"):
+            results.append(item)
         result.setdefault("value", node.get_value())
         result.setdefault("child", results)
         return result
 
     def extend_brother_node(self, node):
         result = {}
-        results = self.search_node(node.get_value(), "hasBrotherNode")
+        results = []
+        for item in self.search_node(node.get_value(), "hasBrotherNode"):
+            results.append(item)
         result.setdefault("value", node.get_value())
         result.setdefault("child", results)
         return result
@@ -281,7 +283,7 @@ class SearchOperate:
             for result in results:
                 temp = {}
                 nodes["child"].append(temp)
-                self.extend_be_rely_node_func(temp, result, depth)
+                self.extend_be_rely_node_func(temp, result["knowledge_id"], depth)
         return
 
     def extend_parallel_node(self, node):
@@ -305,7 +307,7 @@ class SearchOperate:
                 else:
                     temp = {}
                     nodes["child"].append(temp)
-                    self.extend_parallel_node_func(temp, result, depth, origin_node)
+                    self.extend_parallel_node_func(temp, result["knowledge_id"], depth, origin_node)
         return
 
     def extend_rely_node(self, node):
@@ -323,7 +325,7 @@ class SearchOperate:
             for result in results:
                 temp = {}
                 nodes["child"].append(temp)
-                self.extend_rely_node_func(temp, result, depth)
+                self.extend_rely_node_func(temp, result["knowledge_id"], depth)
         return
 
     def extend_child_node(self, node):
@@ -341,7 +343,7 @@ class SearchOperate:
             for result in results:
                 temp = {}
                 nodes["child"].append(temp)
-                self.extend_child_node_func(temp, result, depth)
+                self.extend_child_node_func(temp, result["knowledge_id"], depth)
         return
 
     def extend_parent_node(self, node):
@@ -359,7 +361,7 @@ class SearchOperate:
             for result in results:
                 temp = {}
                 nodes["child"].append(temp)
-                self.extend_parent_node_func(temp, result, depth)
+                self.extend_parent_node_func(temp, result["knowledge_id"], depth)
         return
 
     def extend_related_node(self, node):
@@ -386,30 +388,28 @@ class SearchOperate:
                     temp = {}
                     nodes["child"].append(temp)
                     collection.append(result)
-                    self.extend_related_node_func(temp, result, depth, collection)
+                    self.extend_related_node_func(temp, result["knowledge_id"], depth, collection)
         return
 
     def get_result(self, knowledge_id):
         knowledge_node = self.get_tree_node(knowledge_id)
         knowledge_extend_node = self.extend_node(knowledge_node)
-        result = self.calculate_sim(knowledge_node, knowledge_extend_node)
+        all_collection = self.calculate_sim(knowledge_node, knowledge_extend_node)
+        # 结果排序
+        sorted_collection = sorted(all_collection, key=lambda c: c['similarity'], reverse=True)
+        # 结果去重
+        result = self._remove_duplicate(sorted_collection)
         return result
 
-    # def extend_related_node_func(self, nodes, node_value, depth, origin_node):
-    #     nodes.setdefault("value", node_value)
-    #     nodes.setdefault("depth", depth)
-    #     nodes.setdefault("child", [])
-    #     results = self.search_node(node_value, "hasRelateNode")
-    #     if results:
-    #         for result in results:
-    #             if origin_node == result:
-    #                 if len(results) == 1:
-    #                     return
-    #                 else:
-    #                     continue
-    #             else:
-    #                 depth += 1
-    #                 temp = {}
-    #                 nodes["child"].append(temp)
-    #                 self.extend_related_node_func(temp, result, depth, origin_node)
-    #     return
+    def _remove_duplicate(self, dict_list):
+        seen = set()
+        new_dict_list = []
+        for dict in dict_list:
+            t_dict = {'knowledge_id': dict['knowledge_id']}
+            t_tup = tuple(t_dict.items())
+            if t_tup not in seen:
+                seen.add(t_tup)
+                new_dict_list.append(dict)
+        return new_dict_list
+
+

@@ -3,6 +3,7 @@ from retrieved.searchOperate import SearchOperate
 
 
 class SearchManager:
+    # SearchManager 用于检索的管理
     def __init__(self):
         self.sqlstr_PREFIX = """
         PREFIX : <http://www.semanticweb.org/wbw/ontologies/2018/4/basic#> 
@@ -23,7 +24,87 @@ class SearchManager:
         self.sparql = SPARQLWrapper("http://localhost:3030/basic/query",
                                     updateEndpoint="http://localhost:3030/basic/update")
 
+        self.data_predicate = {
+            # 教学单元
+            "teach": {
+                "keyword": "teach:教学单元关键字",
+                "description": "teach:教学单元描述",
+                "title": "teach:教学单元名称",
+            },
+            # 知识点
+            "knowledge": {
+                "demand": "knowledge:大纲要求难度",
+                "achieve": "knowledge:学生掌握程度",
+                "title": "knowledge:知识点名称",
+                "thumbnailUrl": "knowledge:知识点缩略图Url",
+                "synonym": "knowledge:同义词",
+                "difficulty": "knowledge:难度系数",
+                "importance": "knowledge:重要程度",
+                "description": "knowledge:描述信息",
 
+            },
+            # 资源
+            "material": {
+                "url": "material:资源位置",
+                "userid": "material:上传者id",
+                "size": "material:资源大小",
+                "thumbnailUrl": "material:资源缩略图Url",
+                "language": "material:资源语种",
+                "keyword": "material:资源关键字",
+                "description": "material:资源描述",
+                "title": "material:资源名称",
+                "applicableObject": "material:资源适用对象",
+                "type": "material:资源类型",
+            },
+            # 课时
+            "course": {
+                "interactionDegree": "course:课时交互程度",
+                "interactionType": "course:课时交互类型",
+                "learningObjectType": "course:课时学习对象类型",
+                "averageRetentionRate": "course:课时平均滞留率",
+                "semanticDensity": "course:课时语义密度",
+                "watchNum": "course:课时观看人数",
+                "clickNum": "course:课时点击人数",
+                "duration": "course:课时持续时间",
+                "type": "course:课时类型",
+                "difficulty": "course:课时难度",
+                "typicalLearningTime": "course:课时典型学习时间",
+                "title": "course:课时名称",
+            },
+            # 课程
+            "lesson": {
+                "title": "lesson:课程名称",
+                "description": "lesson:课程描述信息",
+                "thumbnailUrl": "lesson:课程缩略图",
+                "publishStatus": "lesson:课程发布状态",
+            },
+            "teacher": {
+                "studentNum": "teacher: 教师学生人数",
+                "name": "teacher:教师姓名",
+                "sex": "teacher:教师性别",
+                "expertCourse": "teacher:教师擅长课程",
+                "age": "teacher:教师年龄"
+            },
+            "student": {
+                "name": "student:学生姓名",
+                "age": "student:学生年龄",
+                "sex": "student:学生性别",
+                "email": "student:学生邮件地址",
+                "school": "student:学生学校"
+            },
+            "relationship": {
+                "hasChildNode": "basic:hasChildNode",
+                "hasParentNode": "basic:hasParentNode",
+                "hasParallelNode": "basic:hasParallelNode",
+                "hasBrotherNode": "basic:hasBrotherNode",
+                "hasRelyOnNode": "basic:hasRelyOnNode",
+                "hasBeRelyByNode": "basic:hasBeRelyByNode",
+                "hasNextNode": "basic:hasNextNode",
+                "hasPrevNode": "basic:hasPrevNode",
+                "hasSynonymNode": "basic:hasSynonymNode",
+                "hasRelateNode": "basic:hasRelateNode",
+            }
+        }
 
     def search_request(self, search_query):
         self.sparql.setQuery(search_query)  # 这一步编辑查询语句
@@ -126,17 +207,18 @@ class SearchManager:
         lesson_id = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)[0]["lesson_id"]
         if not lesson_id:
             return False
-        #使用课程id和课程内知识点id进行检索
+        # 使用课程id和课程内知识点id进行检索
         result = self.get_search_result(lesson_id, knowledge_id)
         return result
 
     def get_search_result(self, lesson_id, knowledge_id):
-        #获取课程的知识体系
+        # 获取课程的知识体系
         root_knowledge_id = self.get_root_knowledge(lesson_id)
         search_operate = SearchOperate(lesson_id, root_knowledge_id)
-
-        #检索概念
-        result = search_operate.get_result(knowledge_id)
+        # 检索概念
+        knowledge_collection = search_operate.get_result(knowledge_id)
+        # 检索概念匹配的教学单元、课时和资源
+        result = self._get_full_info(knowledge_collection)
         return result
 
     def get_root_knowledge(self, lesson_id):
@@ -150,3 +232,55 @@ class SearchManager:
                """ % lesson_id
         knowledge_id = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)[0]["knowledge_id"]
         return knowledge_id
+
+    def _get_full_info(self, knowledge_collection):
+        # 查找知识点对应的教学单元信息
+        results = []
+        for item in knowledge_collection:
+            knowledge_id = item["knowledge_id"]
+            knowledge_info = self._search_data_property(knowledge_id, 'knowledge')
+            # 查找教学单元对应的课时信息
+            # teach_id = self._get_teach_id(knowledge_id)
+            # teach_info = self._search_data_property(teach_id, 'teach')
+            # course_info = self._search_data_property(teach_id, 'course')
+        # 查找课时对应的资源信息
+        return results
+
+    def _get_teach_id(self, knowledge_id):
+        sqlstr_SELECT = """
+                        SELECT ?teach_id 
+                        """
+        sqlstr_WHERE = """
+                        WHERE {
+                            knowledge:%s  basic:hasTeach ?teach_id.
+                        }
+                        """ % knowledge_id
+        result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)[0]["teach_id"]
+        return result
+
+    def _search_data_property(self, node_id, search_type):
+        data_property = {}
+        if self.data_predicate[search_type]:
+            for key in self.data_predicate[search_type]:
+                data_property.setdefault(key, self._search_data_property_func(node_id, search_type,
+                                                                              self.data_predicate[search_type][key]))
+
+    def _search_data_property_func(self, node_id, node_type, data_predicate):
+        sqlstr_SELECT = """
+                SELECT ?data 
+                """
+        sqlstr_WHERE = """
+                WHERE {
+                    %s:%s  %s ?data.
+                }
+                """ % (node_type, node_id, data_predicate)
+        result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        if len(result) == 1:
+            return result[0]["data"]
+        else:
+            temp = []
+            for i in result:
+                temp.append(i)
+            return temp
+
+

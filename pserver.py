@@ -93,7 +93,7 @@ def search_knowledge_in_lesson():
         extend_pattern = search_manager.transform_title_to_id_in_lesson(search_pattern,search_pattern)
         results = []
         for item in extend_pattern:
-            results = search_manager.search_knowledge(item)
+            results.append(search_manager.search_knowledge(item))
         return json.dumps(results)
     return 404
 

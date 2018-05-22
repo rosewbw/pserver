@@ -4,7 +4,7 @@ import types
 
 
 class KnowledgeGraph:
-
+    # KnowledgeGraph 用于图谱数据的生成和释放
     def __init__(self):
         self.sqlstr_PREFIX = """
         PREFIX : <http://www.semanticweb.org/wbw/ontologies/2018/4/basic#> 
