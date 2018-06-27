@@ -131,6 +131,19 @@ class SearchManager:
         result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
         return result
 
+    def search_teacher_by_lesson(self, lesson_id):
+        sqlstr_SELECT = """
+                        SELECT ?teacher_name
+                        """
+        sqlstr_WHERE = """
+                        WHERE {
+                            ?teacher_id basic:hasCreateLesson lesson:%s.
+                            ?teacher_id teacher:教师姓名 ?teacher_name
+                        }
+                        """ % lesson_id  # 这个术语称为字符串格式化，记着了
+        result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        return result
+
     def search_lesson(self, lesson_title):
         sqlstr_SELECT = """
                 SELECT ?lesson_id ?description
@@ -237,26 +250,137 @@ class SearchManager:
         # 查找知识点对应的教学单元信息
         results = []
         for item in knowledge_collection:
+            collection = {}
+            collection.setdefault('similarity', item["similarity"])
             knowledge_id = item["knowledge_id"]
+
+            lesson_id = self._get_lesson_id(knowledge_id)
+            lesson_info = self._search_data_property(lesson_id, 'lesson')
+            collection.setdefault('lesson', {
+                'id': lesson_id,
+                'data': lesson_info
+            })
+
             knowledge_info = self._search_data_property(knowledge_id, 'knowledge')
-            # 查找教学单元对应的课时信息
-            # teach_id = self._get_teach_id(knowledge_id)
-            # teach_info = self._search_data_property(teach_id, 'teach')
-            # course_info = self._search_data_property(teach_id, 'course')
+            collection.setdefault('knowledge', {
+                'id': knowledge_id,
+                'data': knowledge_info
+            })
+            # 查找知识点对应的教学单元信息
+            teach_id = self._get_teach_id(knowledge_id)
+            teach_info = self._search_data_property(teach_id, 'teach')
+            collection.setdefault('teach', {
+                'id': teach_id,
+                'data': teach_info
+            })
+            # 查找教学单元对应的主课时信息
+            mcourse_id = self._get_mcourse_id(teach_id)
+            mcourse_info = self._search_data_property(mcourse_id, 'course')
+            # 查找主课时对应的资源信息
+            material_id = self._get_material_id(mcourse_id)
+            material_info = self._search_data_property(material_id, 'material')
+            mcourse_info.setdefault('material_data', {
+                'id': material_id,
+                'data': material_info
+            })
+            # mcourse_info.setdefault('material_id', material_id)
+            # mcourse_info.setdefault('mcourse_info', material_info)
+            collection.setdefault('mcourse', {
+                'id': mcourse_id,
+                'data': mcourse_info
+            })
+
+            acourse_ids = self._get_acourse_id(teach_id)
+            ac_info = []
+            for a in acourse_ids:
+                acourse_info = self._search_data_property(a['acourse_id'], 'course')
+                material_id = self._get_material_id(a['acourse_id'])
+                material_info = self._search_data_property(material_id, 'material')
+                acourse_info.setdefault('material_data', {
+                    'id': material_id,
+                    'data': material_info
+                })
+                ac_info.append({
+                    'id': a['acourse_id'],
+                    'data': acourse_info
+                })
+
+            collection.setdefault('acourse', ac_info)
+            results.append(collection)
         # 查找课时对应的资源信息
         return results
 
     def _get_teach_id(self, knowledge_id):
         sqlstr_SELECT = """
-                        SELECT ?teach_id 
-                        """
+                SELECT ?teach_id 
+                """
         sqlstr_WHERE = """
-                        WHERE {
-                            knowledge:%s  basic:hasTeach ?teach_id.
-                        }
-                        """ % knowledge_id
+                WHERE {
+                    knowledge:%s  basic:hasTeach ?teach_id.
+                }
+                """ % knowledge_id
         result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)[0]["teach_id"]
         return result
+
+    def _get_lesson_id(self, knowledge_id):
+        sqlstr_SELECT = """
+                SELECT ?lesson_id 
+                """
+        sqlstr_WHERE = """
+                WHERE {
+                    ?lesson_id  basic:hasKnowledge knowledge:%s.
+                }
+                """ % knowledge_id
+        result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)[0]["lesson_id"]
+        return result
+
+    def _get_mcourse_id(self, course_id):
+        sqlstr_SELECT = """
+                   SELECT ?mcourse_id 
+                   """
+        sqlstr_WHERE = """
+                   WHERE {
+                       teach:%s  basic:hasMCourse ?mcourse_id.
+                   }
+                   """ % course_id
+        result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        if result:
+            return result[0]['mcourse_id']
+        else:
+            return ''
+
+    def _get_acourse_id(self, course_id):
+        sqlstr_SELECT = """
+               SELECT ?acourse_id 
+               """
+        sqlstr_WHERE = """
+               WHERE {
+                   teach:%s  basic:hasACourse ?acourse_id.
+               }
+               """ % course_id
+        result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        if len(result) == 0:
+            return []
+        else:
+            temp = []
+            for i in result:
+                temp.append(i)
+            return temp
+
+    def _get_material_id(self, course_id):
+        sqlstr_SELECT = """
+               SELECT ?material_id 
+               """
+        sqlstr_WHERE = """
+               WHERE {
+                   course:%s  basic:hasMaterial ?material_id.
+               }
+               """ % course_id
+        result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        if result:
+            return result[0]['material_id']
+        else:
+            return ''
 
     def _search_data_property(self, node_id, search_type):
         data_property = {}
@@ -264,6 +388,7 @@ class SearchManager:
             for key in self.data_predicate[search_type]:
                 data_property.setdefault(key, self._search_data_property_func(node_id, search_type,
                                                                               self.data_predicate[search_type][key]))
+        return data_property
 
     def _search_data_property_func(self, node_id, node_type, data_predicate):
         sqlstr_SELECT = """
@@ -277,10 +402,25 @@ class SearchManager:
         result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
         if len(result) == 1:
             return result[0]["data"]
+        elif len(result) == 0:
+            return ''
         else:
             temp = []
             for i in result:
                 temp.append(i)
             return temp
 
-
+    def search_lesson_info(self, search_pattern):
+        result = []
+        lesson_id = self.search_lesson(search_pattern)
+        for item in lesson_id:
+            collection = {}
+            teacher_name = self.search_teacher_by_lesson(item['lesson_id'])
+            lesson_info = self._search_data_property(item['lesson_id'], 'lesson')
+            collection.setdefault('lesson', {
+                'id': item['lesson_id'],
+                'data': lesson_info,
+                'teacher_name': teacher_name
+            })
+            result.append(collection)
+        return result

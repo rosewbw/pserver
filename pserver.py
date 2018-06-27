@@ -31,8 +31,7 @@ def add_lesson():  # 这里接收到工程数据然后逐层的进行解析并�
         # step1：保存工程数据——课程数据
         lesson_data = json.loads(request.data)
         kg.add_graph_data(lesson_data)
-
-    return '创建课程图谱成功'
+    return json.dumps({"status": "success"})
 
 
 # 取消发布课程
@@ -46,7 +45,7 @@ def delete_lesson():  # 这里接收到工程数据然后逐层的进行解析�
             kg.delete_graph_data(lesson_data)
         else:
             return "课程不存在"
-    return '删除课程图谱成功'
+    return json.dumps({"status": "success"})
 
 
 # 搜索教师信息
@@ -57,45 +56,90 @@ def search_teacher():  # 这里接收到工程数据然后逐层的进行解析�
         search_pattern = json.loads(request.data)
         results = search_manager.search_teacher(search_pattern)
         # 返回教师的id，并在非关系数据库中查找教师的信息
-        return results
-    return 404
+        return json.dumps({
+            "status": "success",
+            "result": results
+        })
+    return json.dumps({"status": "false"})
 
 
 # 搜索课程信息
-@app.route('/searchLesson', methods=['GET'])
+@app.route('/searchLesson', methods=['POST'])
 def search_lesson():
-    if request.method == 'GET':
-        search_pattern = request.args.get('searchPattern')
+    if request.method == 'POST':
+        search_pattern = json.loads(request.data)
         results = search_manager.search_lesson(search_pattern)
-        return json.dumps(results)
-    return 404
+        return json.dumps({
+            "status": "success",
+            "result": results
+        })
+    return json.dumps({"status": "false"})
 
 
-#全局下的知识点检索
-@app.route('/searchKnowledge', methods=['GET'])
+# 全局下的知识点检索
+@app.route('/searchKnowledge', methods=['POST'])
 def search_knowledge():
-    if request.method == 'GET':
-        search_pattern = request.args.get('searchPattern')
+    if request.method == 'POST':
+        search_pattern = json.loads(request.data)
         extend_pattern = search_manager.transform_title_to_id(search_pattern)
         results = []
         for item in extend_pattern:
             results = search_manager.search_knowledge(item)
-        return json.dumps(results)
-    return 404
+        return json.dumps({
+            "status": "success",
+            "result": results
+        })
+    return json.dumps({"status": "false"})
 
 
-#课程内的知识点检索
-@app.route('/searchKnowledgeInLesson', methods=['GET'])
+# 课程内的知识点检索
+@app.route('/searchKnowledgeInLesson', methods=['POST'])
 def search_knowledge_in_lesson():
-    if request.method == 'GET':
-        search_pattern = request.args.get('searchPattern')
+    if request.method == 'POST':
+        search_pattern = json.loads(request.data)
         # results = search_manager.search_knowledge(search_pattern)
-        extend_pattern = search_manager.transform_title_to_id_in_lesson(search_pattern,search_pattern)
+        extend_pattern = search_manager.transform_title_to_id_in_lesson(search_pattern, search_pattern)
         results = []
         for item in extend_pattern:
             results.append(search_manager.search_knowledge(item))
         return json.dumps(results)
-    return 404
+    return json.dumps({"status": "false"})
+
+
+@app.route('/search', methods=['POST'])
+def search():
+    if request.method == 'POST':
+        search_pattern = json.loads(request.data)["searchInput"]
+        search_options = json.loads(request.data)["searchOptions"]
+        lesson_results = []
+        knowledge_results = []
+        if len(search_options) == 2 or len(search_options) == 0:
+            # 全局搜知识点和课程
+            # 搜课程
+            lesson_results = search_manager.search_lesson_info(search_pattern)
+            # 搜知识点
+            extend_pattern = search_manager.transform_title_to_id(search_pattern)
+            for item in extend_pattern:
+                knowledge_results.append(search_manager.search_knowledge(item))
+        else:
+            if search_options[0] == 'Lesson':
+                # 搜课程
+                lesson_results = search_manager.search_lesson_info(search_pattern)
+                # lesson_results = search_manager.search_lesson(search_pattern)
+            if search_options[0] == 'Knowledge':
+                extend_pattern = search_manager.transform_title_to_id(search_pattern)
+                for item in extend_pattern:
+                    knowledge_results.append(search_manager.search_knowledge(item))
+
+        return json.dumps({
+            "status": "success",
+            "result": {
+                "lesson": lesson_results,
+                "knowledge": knowledge_results
+            }
+        })
+    return json.dumps({"status": "false"})
+
 
 # # 创建课程
 # # 原则上不需要，先留着吧

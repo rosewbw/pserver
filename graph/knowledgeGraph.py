@@ -56,6 +56,7 @@ class KnowledgeGraph:
                 "title": "material:资源名称",
                 "applicableObject": "material:资源适用对象",
                 "type": "material:资源类型",
+                "duration": "material:资源时长"
             },
             # 课时
             "course": {
@@ -109,8 +110,8 @@ class KnowledgeGraph:
 
     def parse_data_property(self, data_type, data_group):
         sqlstr_DATA = ''
-        if 'id' in data_group.keys():
-            _id = data_group["id"]
+        if '_id' in data_group.keys():
+            _id = data_group["_id"]
             for key in data_group.keys():
                 if key in self.data_predicate[data_type].keys():
                     if isinstance(data_group[key], list):
@@ -135,8 +136,8 @@ class KnowledgeGraph:
 
     def parse_object_property(self, data_group):
         sqlstr_DATA = ''
-        if 'id' in data_group.keys():
-            _id = data_group["id"]
+        if '_id' in data_group.keys():
+            _id = data_group["_id"]
             for key in data_group.keys():
                 if key in self.data_predicate['relationship']:
                     if len(data_group[key]) != 0:
@@ -158,19 +159,21 @@ class KnowledgeGraph:
                     material:{id} material:资源大小 \"{size}\".\
                     material:{id} material:资源缩略图Url \"{thumbnail_url}\".\
                     material:{id} material:资源语种 \"{language}\".\
+                    material:{id} material:资源时长 \"{duration}\".\
                     material:{id} material:资源关键字 \"{keyword}\".\
                     material:{id} material:资源描述 \"{description}\".\
                     material:{id} material:资源名称 \"{title}\".\
-                    material:{id} material:资源类型 \"{format}\".'.format(id=data_group["_id"],
-                                                                      url=data_group["url"],
-                                                                      size=data_group["size"],
-                                                                      thumbnail_url=data_group["thumbnailUrl"],
-                                                                      language=data_group["language"],
-                                                                      keyword=data_group["keyword"],
-                                                                      description=data_group["description"],
-                                                                      title=data_group["name"] or "",
-                                                                      format=data_group["format"]
-                                                                      )
+                    material:{id} material:资源类型 \"{type}\".'.format(id=data_group["_id"],
+                                                                    url=data_group["url"],
+                                                                    size=data_group["size"],
+                                                                    thumbnail_url=data_group["thumbnailUrl"],
+                                                                    language=data_group["language"],
+                                                                    duration=data_group["duration"],
+                                                                    keyword=data_group["keyword"],
+                                                                    description=data_group["description"],
+                                                                    title=data_group["title"] or "",
+                                                                    type=data_group["type"]
+                                                                    )
         sqlstr_INSERT = 'INSERT DATA{' + sqlstr_INSERT_DATA + "}"
         self.sparql.setMethod(POST)
         self.sparql.setQuery(self.sqlstr_PREFIX + sqlstr_INSERT)  # 这一步编辑查询语句
@@ -185,15 +188,14 @@ class KnowledgeGraph:
     def create_knowledge_instance(self, data_group):  # data_group={名称、位置、关键字、描述、类型、id}
         sqlstr_INSERT_DATA_BASE = 'knowledge:{id} a owl:NamedIndividual.\n \
                             knowledge:{id} a basic:知识点.\n'.format(
-            id=data_group["id"]
+            id=data_group["_id"]
         )
         sqlstr_INSERT_DATA_BASE += self.parse_data_property('knowledge', data_group)
         synonym = ""
         if len(data_group["synonym"]) != 0:
-
             for item in data_group["synonym"]:
                 synonym += 'knowledge:{id}  knowledge:同义词 \"{synonym}\". '.format(
-                    id=data_group["id"],
+                    id=data_group["_id"],
                     synonym=item
                 )
 
@@ -210,10 +212,10 @@ class KnowledgeGraph:
                     knowledge:{id} knowledge:学生掌握程度 \"{achieve}\".\
                     knowledge:{id} knowledge:知识点名称 \"{title}\".\
                     knowledge:{id} knowledge:知识点缩略图Url \"{thumbnail_url}\".'.format(
-            id=data_group["id"],
+            id=data_group["_id"],
             demand=data_group["demand"],
             achieve=data_group["achieve"],
-            title=data_group["name"],
+            title=data_group["title"],
             thumbnail_url=data_group["thumbnailUrl"],
         ) + synonym
         sqlstr_INSERT = 'INSERT DATA{' + sqlstr_INSERT_DATA + "}"
@@ -230,7 +232,7 @@ class KnowledgeGraph:
         sqlstr_INSERT_DATA_BASE = self.parse_data_property('teach', data_group)
         sqlstr_INSERT_DATA_BASE += 'teach:{id} a  owl:NamedIndividual.\
                     teach:{id} a basic:教学单元.'.format(
-            id=data_group["id"],
+            id=data_group["_id"],
         )
         sqlstr_INSERT = 'INSERT DATA{' + sqlstr_INSERT_DATA_BASE + "}"
         self.sparql.setMethod(POST)
@@ -261,7 +263,7 @@ class KnowledgeGraph:
                     course:{id} course:课时类型 \"{type}\".\
                     course:{id} course:课时难度 \"{difficulty}\".\
                     course:{id} course:课时名称 \"{title}\".'.format(
-            id=data_group["id"],
+            id=data_group["_id"],
             interactionDegree=data_group["interactionDegree"],
             interactionType=data_group["interactionType"],
             learningObjectType=data_group["learningObjectType"],
@@ -291,7 +293,7 @@ class KnowledgeGraph:
                     lesson:{id} lesson:课程名称 \"{title}\".\
                     lesson:{id} lesson:课程描述信息 \"{description}\".\
                     lesson:{id} lesson:课程发布状态 \"{publishStatus}\".\
-                    lesson:{id} lesson:课程缩略图Url \"{thumbnailUrl}\".'.format(
+                    lesson:{id} lesson:课程缩略图 \"{thumbnailUrl}\".'.format(
             id=data_group["_id"],
             title=data_group["projectName"],
             description=data_group["description"],
@@ -316,7 +318,7 @@ class KnowledgeGraph:
                     teacher:{id} teacher:教师性别 \"{sex}\".\
                     teacher:{id} teacher:教师擅长课程 \"{expertCourse}\".\
                     teacher:{id} teacher:教师年龄 \"{age}\".'.format(
-            id=data_group["id"],
+            id=data_group["_id"],
             studentNum=data_group["studentNum"],
             name=data_group["name"],
             sex=data_group["sex"],
@@ -341,7 +343,7 @@ class KnowledgeGraph:
                     student:{id} student:学生性别 \"{sex}\".\
                     student:{id} student:学生邮件地址 \"{email}\".\
                     student:{id} student:学生学校 \"{school}\".'.format(
-            id=data_group["id"],
+            id=data_group["_id"],
             subject=data_group["subject"],
             name=data_group["name"],
             age=data_group["age"],
@@ -662,10 +664,10 @@ class KnowledgeGraph:
         results = self.sparql.query().convert()  # 通过HTTP向SPARQL终端"http://localhost:3030/mathdb/query"发起
         # 查询请求，通过JSON格式接受返回的数据，存入results中
         if results["results"]["bindings"]:
-            if results["results"]["bindings"][0]["lesson_id"]["value"].split("#")[-1] == lesson_id:
-                return True
-            else:
-                return False
+            for item in results["results"]["bindings"]:
+                if item["lesson_id"]["value"].split("#")[-1] == lesson_id:
+                    return True
+            return False
         else:
             return False
 
@@ -737,23 +739,23 @@ class KnowledgeGraph:
         # 删除知识点数据
         knowledge_data = data_group["data"]
         for item in knowledge_data:
-            knowledge_id = item['id']
+            knowledge_id = item['_id']
             self.remove_instance(knowledge_id, 'knowledge')
             self.remove_knowledge_from_teacher(userid, knowledge_id)
             # 删除教学单元数据
             teach_data = item['teachUnit']
-            self.remove_instance(teach_data["id"], 'teach')
-            self.remove_teach_from_teacher(userid, teach_data["id"])
+            self.remove_instance(teach_data["_id"], 'teach')
+            self.remove_teach_from_teacher(userid, teach_data["_id"])
             # 删除主课时数据
             mainCourse_data = teach_data["mCourseUnit"]
             if mainCourse_data:
-                self.remove_instance(mainCourse_data["id"], 'course')
-                self.remove_course_from_teacher(userid, mainCourse_data["id"])
+                self.remove_instance(mainCourse_data["_id"], 'course')
+                self.remove_course_from_teacher(userid, mainCourse_data["_id"])
             aidCouse_data = teach_data["aCourseUnit"]
             if aidCouse_data:
                 for ac in aidCouse_data:
-                    self.remove_instance(ac["id"], 'course')
-                    self.remove_course_from_teacher(userid, ac["id"])
+                    self.remove_instance(ac["_id"], 'course')
+                    self.remove_course_from_teacher(userid, ac["_id"])
         return "success"
 
     def add_root_knowledge_to_lesson(self, lesson_id, knowledge_id):
@@ -789,32 +791,34 @@ class KnowledgeGraph:
         knowledge_data = lesson_data["data"]
         for k in knowledge_data:
             if k["root"] == True:
-                self.add_root_knowledge_to_lesson(lesson_data["_id"], k["id"])
+                self.add_root_knowledge_to_lesson(lesson_data["_id"], k["_id"])
             self.create_knowledge_instance(k)
-            self.add_knowledge_to_lesson(lesson_data["_id"], k["id"])
-            self.add_knowledge_to_teacher(userid, k["id"])
+            self.add_knowledge_to_lesson(lesson_data["_id"], k["_id"])
+            self.add_knowledge_to_teacher(userid, k["_id"])
             self.add_object_property(k)
             # 添加教学单元
             teach = k["teachUnit"]
             self.create_teach_instance(teach)
-            self.add_teach_to_knowledge(k["id"], teach["id"])
-            self.add_teach_to_teacher(userid, teach["id"])
+            self.add_teach_to_knowledge(k["_id"], teach["_id"])
+            self.add_teach_to_teacher(userid, teach["_id"])
             # 添加主课时
             mCourse = teach["mCourseUnit"]
             if mCourse:
                 self.create_course_instance(mCourse)
-                self.add_course_to_teach(teach["id"], mCourse["id"], mCourse["type"])
-                self.add_course_to_teacher(userid, mCourse["id"])
+                self.add_course_to_teach(teach["_id"], mCourse["_id"], mCourse["type"])
+                self.add_course_to_teacher(userid, mCourse["_id"])
                 material = mCourse["material"]
                 if material:
-                    self.add_material_to_course(mCourse["id"], material["_id"])
+                    self.create_material_instance(material)
+                    self.add_material_to_course(mCourse["_id"], material["_id"])
             # 添加辅课时
             aCourse = teach["aCourseUnit"]
             if aCourse:
                 for ac in aCourse:
                     self.create_course_instance(ac)
-                    self.add_course_to_teach(teach["id"], ac["id"], ac["type"])
-                    self.add_course_to_teacher(userid, ac["id"])
+                    self.add_course_to_teach(teach["_id"], ac["_id"], ac["type"])
+                    self.add_course_to_teacher(userid, ac["_id"])
                     material = ac["material"]
                     if material:
-                        self.add_material_to_course(ac["id"], material["_id"])
+                        self.create_material_instance(material)
+                        self.add_material_to_course(ac["_id"], material["_id"])
