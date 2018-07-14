@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from graph.knowledgeGraph import KnowledgeGraph
 from retrieved.searchManager import SearchManager
 import json
@@ -140,6 +140,32 @@ def search():
         })
     return json.dumps({"status": "false"})
 
+
+# 根据 id 获取课程
+# 返回值：{
+#     status: "success",
+#     result: {
+#         lesson: {},             # 当前知识点所属课程信息
+#         knowledge: [{}, ...],   # 当前知识点一级关联知识点，当前知识点会有属性 current: true
+#         kunit: [{}, ...],       # 当前知识点下的学习单元
+#         mcourse: [{}, ...],     # 当前知识点下的主课时
+#         acourse: [{}, ...],     # 当前知识点下的辅课时
+#     }
+# }
+@app.route('/getKnowledge', methods=['POST'])
+def get_knowledge():
+    id = json.loads(request.data)["id"]
+    if not id:
+        return json.dumps({
+            "status": "error",
+            "message": "未传入知识点 ID!"
+        })
+
+    lesson = search_manager.search_knowledge(id)
+    return jsonify({
+        "status": "success",
+        "result": lesson,
+    })
 
 # # 创建课程
 # # 原则上不需要，先留着吧

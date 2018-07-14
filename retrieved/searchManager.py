@@ -150,7 +150,8 @@ class SearchManager:
                 """
         sqlstr_WHERE = """
                 WHERE {
-                    ?lesson_id lesson:课程名称 \"%s\".
+                    ?lesson_id lesson:课程名称 ?lesson_title .
+                    FILTER regex(?lesson_title, \"%s\", "i")
                 }
                 """ % lesson_title  # 这个术语称为字符串格式化，记着了
 
@@ -164,7 +165,8 @@ class SearchManager:
                 """
         sqlstr_WHERE = """
                 WHERE {
-                    ?knowledge_id knowledge:知识点名称 \"%s\".
+                    ?knowledge_id knowledge:知识点名称 ?knowledge_title .
+                    FILTER regex(?knowledge_title, \"%s\", "i")
                 }
                 """ % knowledge_title
         results = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE) + synonym_extend
@@ -174,13 +176,15 @@ class SearchManager:
         result = list(set(result))
         return result
 
+    # 返回所有同义词的 id
     def extend_by_synonym(self, knowledge_title):
         sqlstr_SELECT = """
                 SELECT DISTINCT ?knowledge_id 
                 """
         sqlstr_WHERE = """
                 WHERE {
-                    ?knowledge_id  knowledge:同义词 \"%s\".
+                    ?knowledge_id  knowledge:同义词 ?knowledge_title .
+                    FILTER regex(?knowledge_title, \"%s\", "i")
                 }
                 """ % knowledge_title
         result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
@@ -228,9 +232,9 @@ class SearchManager:
         # 获取课程的知识体系
         root_knowledge_id = self.get_root_knowledge(lesson_id)
         search_operate = SearchOperate(lesson_id, root_knowledge_id)
-        # 检索概念
+        # 检索所有匹配的知识点
         knowledge_collection = search_operate.get_result(knowledge_id)
-        # 检索概念匹配的教学单元、课时和资源
+        # 检索知识点下的教学单元、课时和资源
         result = self._get_full_info(knowledge_collection)
         return result
 
@@ -246,9 +250,10 @@ class SearchManager:
         knowledge_id = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)[0]["knowledge_id"]
         return knowledge_id
 
+    # 查找知识点集合中每一个知识点对应的教学单元、
     def _get_full_info(self, knowledge_collection):
+        result = []
         # 查找知识点对应的教学单元信息
-        results = []
         for item in knowledge_collection:
             collection = {}
             collection.setdefault('similarity', item["similarity"])
@@ -306,9 +311,10 @@ class SearchManager:
                 })
 
             collection.setdefault('acourse', ac_info)
-            results.append(collection)
+
+            result.append(collection)
         # 查找课时对应的资源信息
-        return results
+        return collection
 
     def _get_teach_id(self, knowledge_id):
         sqlstr_SELECT = """
