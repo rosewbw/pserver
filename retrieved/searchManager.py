@@ -112,6 +112,7 @@ class SearchManager:
         }
 
     def search_request(self, search_query):
+        # print(search_query)
         self.sparql.setQuery(search_query)  # 这一步编辑查询语句
         self.sparql.setReturnFormat(JSON)  # 规定查询结果的表现形式
         results = self.sparql.query().convert()  # 通过HTTP向SPARQL终端"http://localhost:3030/mathdb/query"发起
@@ -180,6 +181,51 @@ class SearchManager:
         for item in results:
             result.append(item["knowledge_id"])
         result = list(set(result))
+        return result
+    def match_kunits_by_title(self, title):
+        sqlstr_SELECT = """
+                SELECT DISTINCT ?id 
+                """
+        sqlstr_WHERE = """
+                WHERE {
+                    ?id teach:教学单元名称 ?title .
+                    FILTER regex(?title, \"%s\", "i")
+                }
+                """ % title
+        results = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        result = []
+        for item in results:
+            result.append(self.get_info_by_id(item["id"], "kunit"))
+        return result
+    def match_mcourses_by_title(self, title):
+        sqlstr_SELECT = """
+                SELECT DISTINCT ?id 
+                """
+        sqlstr_WHERE = """
+                WHERE {
+                    ?id course:课时名称 ?title .
+                    FILTER regex(?title, \"%s\", "i")
+                }
+                """ % title
+        results = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        result = []
+        for item in results:
+            result.append(self.get_info_by_id(item["id"], "mcourse"))
+        return result
+    def match_acourses_by_title(self, title):
+        sqlstr_SELECT = """
+                SELECT DISTINCT ?id 
+                """
+        sqlstr_WHERE = """
+                WHERE {
+                    ?id course:课时名称 ?title .
+                    FILTER regex(?title, \"%s\", "i")
+                }
+                """ % title
+        results = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        result = []
+        for item in results:
+            result.append(self.get_info_by_id(item["id"], "acourse"))
         return result
 
     # 返回所有同义词的 id
@@ -258,6 +304,17 @@ class SearchManager:
         knowledge_id = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)[0]["knowledge_id"]
         return knowledge_id
 
+    def get_info_by_id(self, id, type):
+        if type == 'mcourse' or type == 'acourse':
+            type = "course"
+        if type == 'kunit':
+            type = 'teach'
+
+        return {
+            "id": id,
+            "data": self._search_data_property(id, type)
+        }
+
     def get_full_info_under_knowledge(self, knowledge):
         if isinstance(knowledge, dict):
             knowledge_id = knowledge["knowledge_id"]
@@ -322,6 +379,60 @@ class SearchManager:
             "acourse": ac_info
         }
         return collection
+    # 获取与 kunit 直接有关的资源，返回 { lesson, knowledge, kunit, mcourse, acourse: [List] }
+    def get_direct_resources_with_kunit(self, kunit):
+        if not kunit["id"]:
+            return {}
+
+        knowledge = self._get_knowledge_by_kunit(kunit)
+        lesson = self._get_lesson_by_knowledge(knowledge)
+        mcourse = self._get_mcourse_by_kunit(kunit)
+        acourses = self._get_acourses_by_kunit(kunit)
+
+        collection = {
+            "lesson": lesson,
+            "knowledge": knowledge,
+            "kunit": kunit,
+            "mcourse": mcourse,
+            "acourse": acourses
+        }
+        return collection
+    # 获取与 mcourse 直接有关的资源，返回 { lesson, knowledge, kunit, mcourse, acourse: [List] }
+    def get_direct_resources_with_mcourse(self, mcourse):
+        if not mcourse["id"]:
+            return {}
+
+        kunit = self._get_kunit_by_mcourse(mcourse)
+        knowledge = self._get_knowledge_by_kunit(kunit)
+        lesson = self._get_lesson_by_knowledge(knowledge)
+        acourses = self._get_acourses_by_kunit(kunit)
+
+        collection = {
+            "lesson": lesson,
+            "knowledge": knowledge,
+            "kunit": kunit,
+            "mcourse": mcourse,
+            "acourse": acourses
+        }
+        return collection
+    # 获取与 acourse 直接有关的资源，返回 { lesson, knowledge, kunit, mcourse, acourse }
+    def get_direct_resources_with_acourse(self, acourse):
+        if not acourse["id"]:
+            return {}
+
+        kunit = self._get_kunit_by_acourse(acourse)
+        knowledge = self._get_knowledge_by_kunit(kunit)
+        lesson = self._get_lesson_by_knowledge(knowledge)
+        mcourse = self._get_mcourse_by_kunit(kunit)
+
+        collection = {
+            "lesson": lesson,
+            "knowledge": knowledge,
+            "kunit": kunit,
+            "mcourse": mcourse,
+            "acourse": acourse
+        }
+        return collection
 
     # 查找知识点集合中每一个知识点对应的教学单元、主课时、辅课时等
     def get_full_info_under_knowledges(self, knowledge_collection):
@@ -352,6 +463,7 @@ class SearchManager:
             neighborhoods.append(knowledge)
         return neighborhoods
 
+    # 根据 knowledge_id 查找教学单元 id
     def _get_teach_id(self, knowledge_id):
         sqlstr_SELECT = """
                 SELECT ?teach_id 
@@ -367,7 +479,7 @@ class SearchManager:
         else:
             result = result_from_spasql_server[0]["teach_id"]
         return result
-
+    # 根据 knowledge_id 查找课程 id
     def _get_lesson_id(self, knowledge_id):
         sqlstr_SELECT = """
                 SELECT ?lesson_id 
@@ -383,7 +495,6 @@ class SearchManager:
         else:
             result = result_from_spasql_server[0]["lesson_id"]
         return result
-
     def _get_mcourse_id(self, course_id):
         sqlstr_SELECT = """
                    SELECT ?mcourse_id 
@@ -398,7 +509,6 @@ class SearchManager:
             return result[0]['mcourse_id']
         else:
             return ''
-
     def _get_acourse_id(self, course_id):
         sqlstr_SELECT = """
                SELECT ?acourse_id 
@@ -416,7 +526,6 @@ class SearchManager:
             for i in result:
                 temp.append(i)
             return temp
-
     def _get_material_id(self, course_id):
         sqlstr_SELECT = """
                SELECT ?material_id 
@@ -432,12 +541,124 @@ class SearchManager:
         else:
             return ''
 
+    def _get_knowledge_by_kunit(self, kunit):
+        if not kunit:
+            return None
+
+        sqlstr_SELECT = """
+               SELECT ?knowledge_id 
+               """
+        sqlstr_WHERE = """
+               WHERE {
+                   ?knowledge_id basic:hasTeach teach:%s.
+               }
+               """ % kunit["id"]
+        result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        if len(result) > 0:
+            knowledge_id = result[0]["knowledge_id"]
+            return self.get_info_by_id(knowledge_id, 'knowledge')
+        else:
+            return None
+    def _get_lesson_by_knowledge(self, knowledge):
+        if not knowledge:
+            return None
+
+        sqlstr_SELECT = """
+               SELECT ?lesson_id 
+               """
+        sqlstr_WHERE = """
+               WHERE {
+                   ?lesson_id basic:hasKnowledge knowledge:%s.
+               }
+               """ % knowledge["id"]
+        result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        if len(result) > 0:
+            lesson_id = result[0]["lesson_id"]
+            return self.get_info_by_id(lesson_id, 'lesson')
+        else:
+            return None
+    def _get_mcourse_by_kunit(self, kunit):
+        if not kunit:
+            return None
+
+        sqlstr_SELECT = """
+               SELECT ?mcourse_id 
+               """
+        sqlstr_WHERE = """
+               WHERE {
+                   teach:%s basic:hasMcourse ?mcourse_id
+               }
+               """ % kunit["id"]
+        result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        if len(result) > 0:
+            mcourse_id = result[0]["mcourse_id"]
+            return self.get_info_by_id(mcourse_id, 'mcourse')
+        else:
+            return None
+    def _get_acourses_by_kunit(self, kunit):
+        if not kunit:
+            return None
+
+        sqlstr_SELECT = """
+               SELECT ?acourse_id 
+               """
+        sqlstr_WHERE = """
+               WHERE {
+                   teach:%s basic:hasMcourse ?acourse_id
+               }
+               """ % kunit["id"]
+        result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        acourses = []
+        if result and len(result) > 0:
+            for item in result:
+                acourses.append(self.get_info_by_id(item["acourse_id"], "acourse"))
+        else:
+            return None
+    def _get_kunit_by_mcourse(self, mcourse):
+        if not mcourse:
+            return None
+
+        sqlstr_SELECT = """
+               SELECT ?kunit_id 
+               """
+        sqlstr_WHERE = """
+               WHERE {
+                    ?kunit_id basic:hasMCourse course:%s
+               }
+               """ % mcourse["id"]
+        result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        if len(result) > 0:
+            kunit_id = result[0]["kunit_id"]
+            return self.get_info_by_id(kunit_id, "kunit")
+        else:
+            return None
+    def _get_kunit_by_acourse(self, acourse):
+        if not acourse:
+            return None
+
+        sqlstr_SELECT = """
+               SELECT ?kunit_id 
+               """
+        sqlstr_WHERE = """
+               WHERE {
+                    ?kunit_id basic:hasACourse course:%s
+               }
+               """ % acourse["id"]
+        result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        if len(result) > 0:
+            kunit_id = result[0]["kunit_id"]
+            return self.get_info_by_id(kunit_id, "kunit")
+        else:
+            return None
+
+    # 根据定义的 predicate 查找当前资源下的所有（直属）信息
     def _search_data_property(self, node_id, search_type):
         data_property = {}
         if self.data_predicate[search_type]:
             for key in self.data_predicate[search_type]:
-                data_property.setdefault(key, self._search_data_property_func(node_id, search_type,
-                                                                              self.data_predicate[search_type][key]))
+                data_property[key] = self._search_data_property_func(node_id,
+                                                                     search_type,
+                                                                     self.data_predicate[search_type][key])
         return data_property
 
     def _search_data_property_func(self, node_id, node_type, data_predicate):

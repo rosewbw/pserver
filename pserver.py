@@ -7,7 +7,6 @@ app = Flask(__name__)
 kg = KnowledgeGraph()
 search_manager = SearchManager()
 
-
 @app.route('/uploadMaterial', methods=['POST'])
 def upload_material():
     if request.method == 'POST':
@@ -108,38 +107,52 @@ def search_knowledge_in_lesson():
 
 @app.route('/search', methods=['POST'])
 def search():
-    if request.method == 'POST':
-        search_pattern = json.loads(request.data)["searchInput"]
-        search_options = json.loads(request.data)["searchOptions"]
-        lesson_results = []
-        knowledge_results = []
-        if len(search_options) == 2 or len(search_options) == 0:
-            # 全局搜知识点和课程
-            # 搜课程
-            lesson_results = search_manager.search_lesson_info(search_pattern)
-            # 搜知识点
-            extend_pattern = search_manager.match_knowledges_by_title(search_pattern)
-            # 获取每个知识点对应的所有匹配内容
-            for item in extend_pattern:
-                knowledge_results += search_manager.search_knowledge(item)
-        else:
-            if search_options[0] == 'Lesson':
-                # 搜课程
-                lesson_results = search_manager.search_lesson_info(search_pattern)
-                # lesson_results = search_manager.search_lesson(search_pattern)
-            if search_options[0] == 'Knowledge':
-                extend_pattern = search_manager.match_knowledges_by_title(search_pattern)
-                for item in extend_pattern:
-                    knowledge_results += search_manager.search_knowledge(item)
+    search_pattern = json.loads(request.data)["searchInput"]
+    search_options = json.loads(request.data)["searchOptions"]
+    lesson_results = []
+    knowledge_results = []
+    kunit_results = []
+    mcourse_results = []
+    acourse_results = []
 
-        return json.dumps({
-            "status": "success",
-            "result": {
-                "lesson": lesson_results,
-                "knowledge": knowledge_results
-            }
+    if len(search_options) == 0:
+        return jsonify({
+            "status": "false",
+            "message": "No SearchOptions!"
         })
-    return json.dumps({"status": "false"})
+
+    for option in search_options:
+        if option == 'lesson':
+            lesson_results += search_manager.search_lesson_info(search_pattern)
+        elif option == 'knowledge':
+            # 搜知识点
+            match_knowledges = search_manager.match_knowledges_by_title(search_pattern)
+            # 获取每个知识点对应的所有匹配内容
+            for item in match_knowledges:
+                knowledge_results += search_manager.search_knowledge(item)
+        elif option == 'kunit':
+            match_kunits = search_manager.match_kunits_by_title(search_pattern)
+            for item in match_kunits:
+                kunit_results.append(search_manager.get_direct_resources_with_kunit(item))
+        elif option == 'mcourse':
+            match_mcourses = search_manager.match_mcourses_by_title(search_pattern)
+            for item in match_mcourses:
+                mcourse_results.append(search_manager.get_direct_resources_with_mcourse(item))
+        elif option == 'acourse':
+            match_acourses = search_manager.match_acourses_by_title(search_pattern)
+            for item in match_acourses:
+                acourse_results.append(search_manager.get_direct_resources_with_acourse(item))
+
+    return jsonify({
+        "status": "success",
+        "result": {
+            "lesson": lesson_results,
+            "knowledge": knowledge_results,
+            "kunit": kunit_results,
+            "mcourse": mcourse_results,
+            "acourse": acourse_results
+        }
+    })
 
 
 # 根据 id 获取课程
@@ -174,6 +187,59 @@ def get_knowledge():
     return jsonify({
         "status": "success",
         "result": lesson
+    })
+# 根据 id 获取教学单元
+# 返回值：{
+#     status: "success",
+#     result: {
+#         lesson: {},             # 当前知识点所属课程信息
+#         knowledges: {}          # 当前知识点一级关联知识点，当前知识点会有属性 current: true
+#         kunit: {},              # 当前知识点下的学习单元
+#         mcourse: {},            # 当前知识点下的主课时
+#         acourses: [{}, ...],    # 当前知识点下的辅课时
+#     }
+# }
+@app.route('/getKunit', methods=['POST'])
+def get_kunit():
+    id = json.loads(request.data)["id"]
+    if not id:
+        return json.dumps({
+            "status": "error",
+            "message": "未传入 ID!"
+        })
+
+    kunit = search_manager.get_info_by_id(id, "kunit")
+    return jsonify({
+        "status": "success",
+        "result": search_manager.get_direct_resources_with_kunit(kunit)
+    })
+@app.route('/getMcourse', methods=['POST'])
+def get_mcourse():
+    id = json.loads(request.data)["id"]
+    if not id:
+        return json.dumps({
+            "status": "error",
+            "message": "未传入 ID!"
+        })
+
+    mcourse = search_manager.get_info_by_id(id, "mcourse")
+    return jsonify({
+        "status": "success",
+        "result": search_manager.get_direct_resources_with_mcourse(mcourse)
+    })
+@app.route('/getAcourse', methods=['POST'])
+def get_Acourse():
+    id = json.loads(request.data)["id"]
+    if not id:
+        return json.dumps({
+            "status": "error",
+            "message": "未传入 ID!"
+        })
+
+    acourse = search_manager.get_info_by_id(id, "acourse")
+    return jsonify({
+        "status": "success",
+        "result": search_manager.get_direct_resources_with_acourse(acourse)
     })
 
 # # 创建课程
