@@ -81,7 +81,7 @@ def search_lesson():
 def search_knowledge():
     if request.method == 'POST':
         search_pattern = json.loads(request.data)
-        extend_pattern = search_manager.transform_title_to_id(search_pattern)
+        extend_pattern = search_manager.match_knowledges_by_title(search_pattern)
         results = []
         for item in extend_pattern:
             results = search_manager.search_knowledge(item)
@@ -118,18 +118,19 @@ def search():
             # 搜课程
             lesson_results = search_manager.search_lesson_info(search_pattern)
             # 搜知识点
-            extend_pattern = search_manager.transform_title_to_id(search_pattern)
+            extend_pattern = search_manager.match_knowledges_by_title(search_pattern)
+            # 获取每个知识点对应的所有匹配内容
             for item in extend_pattern:
-                knowledge_results.append(search_manager.search_knowledge(item))
+                knowledge_results += search_manager.search_knowledge(item)
         else:
             if search_options[0] == 'Lesson':
                 # 搜课程
                 lesson_results = search_manager.search_lesson_info(search_pattern)
                 # lesson_results = search_manager.search_lesson(search_pattern)
             if search_options[0] == 'Knowledge':
-                extend_pattern = search_manager.transform_title_to_id(search_pattern)
+                extend_pattern = search_manager.match_knowledges_by_title(search_pattern)
                 for item in extend_pattern:
-                    knowledge_results.append(search_manager.search_knowledge(item))
+                    knowledge_results += search_manager.search_knowledge(item)
 
         return json.dumps({
             "status": "success",
@@ -146,10 +147,10 @@ def search():
 #     status: "success",
 #     result: {
 #         lesson: {},             # 当前知识点所属课程信息
-#         knowledge: [{}, ...],   # 当前知识点一级关联知识点，当前知识点会有属性 current: true
-#         kunit: [{}, ...],       # 当前知识点下的学习单元
-#         mcourse: [{}, ...],     # 当前知识点下的主课时
-#         acourse: [{}, ...],     # 当前知识点下的辅课时
+#         knowledges: [{}, ...],   # 当前知识点一级关联知识点，当前知识点会有属性 current: true
+#         kunit: {},              # 当前知识点下的学习单元
+#         mcourse: {},            # 当前知识点下的主课时
+#         acourses: [{}, ...],     # 当前知识点下的辅课时
 #     }
 # }
 @app.route('/getKnowledge', methods=['POST'])
@@ -161,10 +162,18 @@ def get_knowledge():
             "message": "未传入知识点 ID!"
         })
 
-    lesson = search_manager.search_knowledge(id)
+    # 获取当前知识点的课程信息、下属教学单元、主辅课时
+    lesson = search_manager.get_full_info_under_knowledge(id)
+    # 获取当前知识点的直连知识点
+    neighbor_knowledge = search_manager.get_neighbor_knowledge(id)
+    # 合并成请求返回样式
+    lesson["knowledge"]["id"] = id
+    lesson["knowledge"]["current"] = True
+    neighbor_knowledge.append(lesson["knowledge"])
+    lesson["knowledge"] = neighbor_knowledge
     return jsonify({
         "status": "success",
-        "result": lesson,
+        "result": lesson
     })
 
 # # 创建课程

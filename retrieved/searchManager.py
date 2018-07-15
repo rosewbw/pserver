@@ -21,6 +21,11 @@ class SearchManager:
         PREFIX student: <http://www.semanticweb.org/wbw/ontologies/2018/4/student#> 
         """
 
+        self.sqlstr_ALL_KNOWLEDGE_RELATIONSHIP = """
+        basic:hasRelateNode|basic:hasNextNode|basic:hasParentNode|basic:hasBrotherNode|basic:hasPrevNode
+        |basic:hasParallelNode|basic:hasChildNode|basic:hasSynonymNode|basic:hasRelyOnNode|basic:hasBeRelyByNode
+        """
+
         self.sparql = SPARQLWrapper("http://localhost:3030/basic/query",
                                     updateEndpoint="http://localhost:3030/basic/update")
 
@@ -158,7 +163,8 @@ class SearchManager:
         result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
         return result
 
-    def transform_title_to_id(self, knowledge_title):
+    # 根据 title 获取匹配的知识点 id 组
+    def match_knowledges_by_title(self, knowledge_title):
         synonym_extend = self.extend_by_synonym(knowledge_title)
         sqlstr_SELECT = """
                 SELECT DISTINCT ?knowledge_id 
@@ -191,7 +197,7 @@ class SearchManager:
         return result
 
     def transform_title_to_id_in_lesson(self, lesson_id, knowledge_title):
-        matches = self.transform_title_to_id(knowledge_title)
+        matches = self.match_knowledges_by_title(knowledge_title)
         for item in matches:
             if self.check_knowledge_in_lesson(lesson_id, item):
                 return item
@@ -211,6 +217,7 @@ class SearchManager:
         else:
             return False
 
+    # 获取某知识点下的所有资源
     def search_knowledge(self, knowledge_id):
         # 获取课程的id
         sqlstr_SELECT = """
@@ -228,6 +235,7 @@ class SearchManager:
         result = self.get_search_result(lesson_id, knowledge_id)
         return result
 
+    # 获取规定课程内与某知识点匹配的所有资源
     def get_search_result(self, lesson_id, knowledge_id):
         # 获取课程的知识体系
         root_knowledge_id = self.get_root_knowledge(lesson_id)
@@ -235,7 +243,7 @@ class SearchManager:
         # 检索所有匹配的知识点
         knowledge_collection = search_operate.get_result(knowledge_id)
         # 检索知识点下的教学单元、课时和资源
-        result = self._get_full_info(knowledge_collection)
+        result = self.get_full_info_under_knowledges(knowledge_collection)
         return result
 
     def get_root_knowledge(self, lesson_id):
@@ -250,71 +258,99 @@ class SearchManager:
         knowledge_id = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)[0]["knowledge_id"]
         return knowledge_id
 
-    # 查找知识点集合中每一个知识点对应的教学单元、
-    def _get_full_info(self, knowledge_collection):
-        result = []
-        # 查找知识点对应的教学单元信息
-        for item in knowledge_collection:
-            collection = {}
-            collection.setdefault('similarity', item["similarity"])
-            knowledge_id = item["knowledge_id"]
+    def get_full_info_under_knowledge(self, knowledge):
+        if isinstance(knowledge, dict):
+            knowledge_id = knowledge["knowledge_id"]
+            knowledge_similarity = knowledge["similarity"]
+        else:
+            knowledge_id = knowledge
+            knowledge_similarity = None
 
-            lesson_id = self._get_lesson_id(knowledge_id)
-            lesson_info = self._search_data_property(lesson_id, 'lesson')
-            collection.setdefault('lesson', {
-                'id': lesson_id,
-                'data': lesson_info
-            })
+        lesson_id = self._get_lesson_id(knowledge_id)
+        lesson_info = self._search_data_property(lesson_id, 'lesson')
 
-            knowledge_info = self._search_data_property(knowledge_id, 'knowledge')
-            collection.setdefault('knowledge', {
-                'id': knowledge_id,
-                'data': knowledge_info
-            })
-            # 查找知识点对应的教学单元信息
-            teach_id = self._get_teach_id(knowledge_id)
-            teach_info = self._search_data_property(teach_id, 'teach')
-            collection.setdefault('teach', {
-                'id': teach_id,
-                'data': teach_info
-            })
-            # 查找教学单元对应的主课时信息
-            mcourse_id = self._get_mcourse_id(teach_id)
-            mcourse_info = self._search_data_property(mcourse_id, 'course')
-            # 查找主课时对应的资源信息
-            material_id = self._get_material_id(mcourse_id)
+        knowledge_info = self._search_data_property(knowledge_id, 'knowledge')
+        # 查找知识点对应的教学单元
+        teach_id = self._get_teach_id(knowledge_id)
+        teach_info = self._search_data_property(teach_id, 'teach')
+
+        # 查找教学单元对应的主课时信息
+        mcourse_id = self._get_mcourse_id(teach_id)
+        mcourse_info = self._search_data_property(mcourse_id, 'course')
+        # 查找主课时对应的资源信息
+        material_id = self._get_material_id(mcourse_id)
+        material_info = self._search_data_property(material_id, 'material')
+        mcourse_info['material_data'] = {
+            'id': material_id,
+            'data': material_info
+        }
+
+        acourse_ids = self._get_acourse_id(teach_id)
+        ac_info = []
+        for a in acourse_ids:
+            acourse_info = self._search_data_property(a['acourse_id'], 'course')
+            material_id = self._get_material_id(a['acourse_id'])
             material_info = self._search_data_property(material_id, 'material')
-            mcourse_info.setdefault('material_data', {
+            acourse_info.setdefault('material_data', {
                 'id': material_id,
                 'data': material_info
             })
-            # mcourse_info.setdefault('material_id', material_id)
-            # mcourse_info.setdefault('mcourse_info', material_info)
-            collection.setdefault('mcourse', {
-                'id': mcourse_id,
-                'data': mcourse_info
+            ac_info.append({
+                'id': a['acourse_id'],
+                'data': acourse_info
             })
 
-            acourse_ids = self._get_acourse_id(teach_id)
-            ac_info = []
-            for a in acourse_ids:
-                acourse_info = self._search_data_property(a['acourse_id'], 'course')
-                material_id = self._get_material_id(a['acourse_id'])
-                material_info = self._search_data_property(material_id, 'material')
-                acourse_info.setdefault('material_data', {
-                    'id': material_id,
-                    'data': material_info
-                })
-                ac_info.append({
-                    'id': a['acourse_id'],
-                    'data': acourse_info
-                })
-
-            collection.setdefault('acourse', ac_info)
-
-            result.append(collection)
-        # 查找课时对应的资源信息
+        collection = {
+            "similarity": knowledge_similarity,
+            "lesson": {
+                'id': lesson_id,
+                'data': lesson_info
+            },
+            "knowledge": {
+                'id': knowledge_id,
+                'current': True,
+                'data': knowledge_info
+            },
+            "kunit": {
+                'id': teach_id,
+                'data': teach_info
+            },
+            "mcourse": {
+                'id': mcourse_id,
+                'data': mcourse_info
+            },
+            "acourse": ac_info
+        }
         return collection
+
+    # 查找知识点集合中每一个知识点对应的教学单元、主课时、辅课时等
+    def get_full_info_under_knowledges(self, knowledge_collection):
+        result = []
+        for item in knowledge_collection:
+            result.append(self.get_full_info_under_knowledge(item))
+
+        return result
+
+    def get_neighbor_knowledge(self, knowledge_id):
+        neighborhoods = []
+
+        sqlstr_SELECT = """
+                SELECT ?knowledge_id 
+                """
+        sqlstr_WHERE = """
+                WHERE {
+                    knowledge:%s %s ?knowledge_id.
+                }
+                """ % (knowledge_id, self.sqlstr_ALL_KNOWLEDGE_RELATIONSHIP)
+        neighborhoods_ids = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        for neighborhood_id in neighborhoods_ids:
+            knowledge = {
+                "id": neighborhood_id["knowledge_id"],
+                "current": False,
+                "data": self._search_data_property(neighborhood_id["knowledge_id"], 'knowledge')
+            }
+            neighborhoods.append(knowledge)
+        return neighborhoods
 
     def _get_teach_id(self, knowledge_id):
         sqlstr_SELECT = """
@@ -325,7 +361,11 @@ class SearchManager:
                     knowledge:%s  basic:hasTeach ?teach_id.
                 }
                 """ % knowledge_id
-        result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)[0]["teach_id"]
+        result_from_spasql_server = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        if len(result_from_spasql_server) == 0:
+            result = None
+        else:
+            result = result_from_spasql_server[0]["teach_id"]
         return result
 
     def _get_lesson_id(self, knowledge_id):
@@ -337,7 +377,11 @@ class SearchManager:
                     ?lesson_id  basic:hasKnowledge knowledge:%s.
                 }
                 """ % knowledge_id
-        result = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)[0]["lesson_id"]
+        result_from_spasql_server = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        if len(result_from_spasql_server) == 0:
+            result = None
+        else:
+            result = result_from_spasql_server[0]["lesson_id"]
         return result
 
     def _get_mcourse_id(self, course_id):
