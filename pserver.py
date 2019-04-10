@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from graph.knowledgeGraph import KnowledgeGraph
 from retrieved.searchManager import SearchManager
+import jieba
 import json
 
 app = Flask(__name__)
@@ -107,8 +108,10 @@ def search_knowledge_in_lesson():
 
 @app.route('/search', methods=['POST'])
 def search():
-    search_pattern = json.loads(request.data)["searchInput"]
+    search_input = json.loads(request.data)["searchInput"]
     search_options = json.loads(request.data)["searchOptions"]
+    searched_ids = []
+    search_patterns = [search_input]
     lesson_results = []
     knowledge_results = []
     kunit_results = []
@@ -121,27 +124,54 @@ def search():
             "message": "No SearchOptions!"
         })
 
+    for pattern in jieba.cut_for_search(search_input):
+        search_patterns.append(pattern)
+
+    # 按长度降序排列
+    search_patterns.sort(key=lambda ele: len(ele), reverse=True)
     for option in search_options:
-        if option == 'lesson':
-            lesson_results += search_manager.search_lesson_info(search_pattern)
-        elif option == 'knowledge':
-            # 搜知识点
-            match_knowledges = search_manager.match_knowledges_by_title(search_pattern)
-            # 获取每个知识点对应的所有匹配内容
-            for item in match_knowledges:
-                knowledge_results += search_manager.search_knowledge(item)
-        elif option == 'kunit':
-            match_kunits = search_manager.match_kunits_by_title(search_pattern)
-            for item in match_kunits:
-                kunit_results.append(search_manager.get_direct_resources_with_kunit(item))
-        elif option == 'mcourse':
-            match_mcourses = search_manager.match_mcourses_by_title(search_pattern)
-            for item in match_mcourses:
-                mcourse_results.append(search_manager.get_direct_resources_with_mcourse(item))
-        elif option == 'acourse':
-            match_acourses = search_manager.match_acourses_by_title(search_pattern)
-            for item in match_acourses:
-                acourse_results.append(search_manager.get_direct_resources_with_acourse(item))
+        for search_pattern in search_patterns:
+            if option == 'lesson':
+                lesson_result = search_manager.search_lesson_info(search_pattern, searched_ids)
+                if lesson_result:
+                    lesson_results += lesson_result
+
+            elif option == 'knowledge':
+                # 搜知识点
+                match_knowledges = search_manager.match_knowledges_by_title(search_pattern)
+                # 获取每个知识点对应的所有匹配内容
+                for item in match_knowledges:
+                    if item in searched_ids:
+                        continue
+                    searched_ids.append(item)
+
+                    knowledge_result = search_manager.search_knowledge(item)
+                    if knowledge_result:
+                        knowledge_results += knowledge_result
+
+            elif option == 'kunit':
+                match_kunits = search_manager.match_kunits_by_title(search_pattern)
+                for item in match_kunits:
+                    if item in searched_ids:
+                        continue
+                    searched_ids.append(item)
+                    kunit_results.append(search_manager.get_direct_resources_with_kunit(item))
+
+            elif option == 'mcourse':
+                match_mcourses = search_manager.match_mcourses_by_title(search_pattern)
+                for item in match_mcourses:
+                    if item in searched_ids:
+                        continue
+                    searched_ids.append(item)
+                    mcourse_results.append(search_manager.get_direct_resources_with_mcourse(item))
+
+            elif option == 'acourse':
+                match_acourses = search_manager.match_acourses_by_title(search_pattern)
+                for item in match_acourses:
+                    if item in searched_ids:
+                        continue
+                    searched_ids.append(item)
+                    acourse_results.append(search_manager.get_direct_resources_with_acourse(item))
 
     return jsonify({
         "status": "success",

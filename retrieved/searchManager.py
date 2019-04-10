@@ -121,7 +121,7 @@ class SearchManager:
         for item in results["results"]["bindings"]:
             temp = {}
             for key in item.keys():
-                temp.setdefault(key, item[key]["value"].split("#")[-1])
+                temp[key] = item[key]["value"].split("#")[-1]
             result.append(temp)
         return result
 
@@ -274,9 +274,10 @@ class SearchManager:
                    ?lesson_id  basic:hasKnowledge knowledge:%s.
                }
                """ % knowledge_id
-        lesson_id = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)[0]["lesson_id"]
-        if not lesson_id:
+        lessons = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
+        if len(lessons) < 1 or not lessons[0]["lesson_id"]:
             return False
+        lesson_id = lessons[0]["lesson_id"]
         # 使用课程id和课程内知识点id进行检索
         result = self.get_search_result(lesson_id, knowledge_id)
         return result
@@ -348,10 +349,10 @@ class SearchManager:
             acourse_info = self._search_data_property(a['acourse_id'], 'course')
             material_id = self._get_material_id(a['acourse_id'])
             material_info = self._search_data_property(material_id, 'material')
-            acourse_info.setdefault('material_data', {
+            acourse_info['material_data'] = {
                 'id': material_id,
                 'data': material_info
-            })
+            }
             ac_info.append({
                 'id': a['acourse_id'],
                 'data': acourse_info
@@ -444,6 +445,7 @@ class SearchManager:
 
     def get_neighbor_knowledge(self, knowledge_id):
         neighborhoods = []
+        exist_ids = [knowledge_id]
 
         sqlstr_SELECT = """
                 SELECT ?knowledge_id 
@@ -455,6 +457,11 @@ class SearchManager:
                 """ % (knowledge_id, self.sqlstr_ALL_KNOWLEDGE_RELATIONSHIP)
         neighborhoods_ids = self.search_request(self.sqlstr_PREFIX + sqlstr_SELECT + sqlstr_WHERE)
         for neighborhood_id in neighborhoods_ids:
+            # 由于推理规则，可能导致知识点本身被搜索到
+            if neighborhood_id["knowledge_id"] in exist_ids:
+                continue
+
+            exist_ids.append(neighborhood_id["knowledge_id"])
             knowledge = {
                 "id": neighborhood_id["knowledge_id"],
                 "current": False,
@@ -681,17 +688,23 @@ class SearchManager:
                 temp.append(i)
             return temp
 
-    def search_lesson_info(self, search_pattern):
+    def search_lesson_info(self, search_pattern, searched_lesson_ids):
         result = []
-        lesson_id = self.search_lesson(search_pattern)
-        for item in lesson_id:
-            collection = {}
+        lesson_ids = self.search_lesson(search_pattern)
+        for item in lesson_ids:
+            if item["lesson_id"] in searched_lesson_ids:
+                continue
+
+            searched_lesson_ids.append(item["lesson_id"])
+
             teacher_name = self.search_teacher_by_lesson(item['lesson_id'])
             lesson_info = self._search_data_property(item['lesson_id'], 'lesson')
-            collection.setdefault('lesson', {
-                'id': item['lesson_id'],
-                'data': lesson_info,
-                'teacher_name': teacher_name
-            })
+            collection = {
+                "lesson": {
+                    'id': item['lesson_id'],
+                    'data': lesson_info,
+                    'teacher_name': teacher_name
+                }
+            }
             result.append(collection)
         return result

@@ -65,7 +65,7 @@ class SearchOperate:
         for item in results["results"]["bindings"]:
             temp = {}
             for key in item.keys():
-                temp.setdefault(key, item[key]["value"].split("#")[-1])
+                temp[key] = item[key]["value"].split("#")[-1]
             result.append(temp)
         return result
 
@@ -142,20 +142,23 @@ class SearchOperate:
         return distance
 
     def get_all_parent_nodes(self, nodes, node, height=0):
-        nodes.setdefault("key", node)
-        nodes.setdefault("height", height)
+        nodes["key"] = node
+        nodes["height"] = height
         results = self.search_node(node, 'hasParentNode')
         if results:
-            nodes.setdefault("parentNode", {})
+            nodes["parentNode"] = {}
             height += 1
             for result in results:
                 self.get_all_parent_nodes(nodes["parentNode"], result, height=height)
         else:
-            nodes.setdefault("parentNode", {})
+            nodes["parentNode"] = {}
             return
         return nodes
 
     def calculate_sim_distance(self, node1, node2):
+        if not node1 or not node2:
+            return 0
+
         distance = self.calculate_distance(node1, node2)
         alpha = 2 * node1.get_depth() / (node1.get_depth() + node2.get_depth())
         # alpha = pow(0.5, node1.get_depth())
@@ -184,13 +187,13 @@ class SearchOperate:
                         if node1.get_value() == child["knowledge_id"]:
                             continue
                         else:
-                            temp = {}
-                            temp.setdefault("n1", node1.get_value())
-                            temp.setdefault("n2", child["knowledge_id"])
                             n2 = self.get_tree_node(child["knowledge_id"])
                             sim = self.calculate_sim_distance(node1, n2) * 0.7 + 0.5 * 0.3
                             if sim >= 0.8:
-                                temp.setdefault("sim", sim)
+                                temp = {
+                                    "knowledge_id": child["knowledge_id"],
+                                    "similarity": sim,
+                                }
                                 result.append(temp)
                 else:
                     if node == "child":
@@ -205,12 +208,13 @@ class SearchOperate:
 
     def calculate_sim_func(self, result, node1, nodes, degree):
         for child in nodes:
-            temp = {}
-            temp.setdefault("knowledge_id", child["value"])
+            temp = {
+                "knowledge_id": child["value"]
+            }
             n2 = self.get_tree_node(child["value"])
             sim = self.calculate_sim_distance(node1, n2) * 0.7 + pow(degree, child["depth"]) * 0.3
             if sim >= 0.8:
-                temp.setdefault("similarity", sim)
+                temp["similarity"] = sim
                 result.append(temp)
             if len(child) == 3:
                 self.calculate_sim_func(result, node1, child["child"], degree)
@@ -238,34 +242,37 @@ class SearchOperate:
     def extend_node(self, node):
         if node is None:
             return
-        else:
-            result = {}
-            result.setdefault("synonym", self.extend_synonym_node(node))
-            result.setdefault("brother", self.extend_brother_node(node))
-            result.setdefault("related", self.extend_related_node(node))
-            result.setdefault("parallel", self.extend_parallel_node(node))
-            result.setdefault("relyon", self.extend_rely_node(node))
-            result.setdefault("berelyon", self.extend_be_rely_node(node))
-            result.setdefault("parent", self.extend_parent_node(node))
-            result.setdefault("child", self.extend_child_node(node))
+
+        result = {
+            "synonym": self.extend_synonym_node(node),
+            "brother": self.extend_brother_node(node),
+            "related": self.extend_related_node(node),
+            "parallel": self.extend_parallel_node(node),
+            "relyon": self.extend_rely_node(node),
+            "berelyon": self.extend_be_rely_node(node),
+            "parent": self.extend_parent_node(node),
+            "child": self.extend_child_node(node),
+        }
         return result
 
     def extend_synonym_node(self, node):
-        result = {}
         results = []
         for item in self.search_node(node.get_value(), "hasSynonymNode"):
             results.append(item)
-        result.setdefault("value", node.get_value())
-        result.setdefault("child", results)
+        result = {
+            "value": node.get_value(),
+            "child": results
+        }
         return result
 
     def extend_brother_node(self, node):
-        result = {}
         results = []
         for item in self.search_node(node.get_value(), "hasBrotherNode"):
             results.append(item)
-        result.setdefault("value", node.get_value())
-        result.setdefault("child", results)
+        result = {
+            "value": node.get_value(),
+            "child": results
+        }
         return result
 
     def extend_be_rely_node(self, node):
@@ -274,9 +281,9 @@ class SearchOperate:
         return result
 
     def extend_be_rely_node_func(self, nodes, node_value, depth):
-        nodes.setdefault("value", node_value)
-        nodes.setdefault("depth", depth)
-        nodes.setdefault("child", [])
+        nodes["value"] = node_value
+        nodes["depth"] = depth
+        nodes["child"] = []
         results = self.search_node(node_value, "hasBeRelyByNode")
         if results:
             depth += 1
@@ -292,9 +299,9 @@ class SearchOperate:
         return result
 
     def extend_parallel_node_func(self, nodes, node_value, depth, origin_node):
-        nodes.setdefault("value", node_value)
-        nodes.setdefault("depth", depth)
-        nodes.setdefault("child", [])
+        nodes["value"] = node_value
+        nodes["depth"] = depth
+        nodes["child"] = []
         results = self.search_node(node_value, "hasParentNode")
         if results:
             depth += 1
@@ -316,9 +323,9 @@ class SearchOperate:
         return result
 
     def extend_rely_node_func(self, nodes, node_value, depth):
-        nodes.setdefault("value", node_value)
-        nodes.setdefault("depth", depth)
-        nodes.setdefault("child", [])
+        nodes["value"] = node_value
+        nodes["depth"] = depth
+        nodes["child"] = []
         results = self.search_node(node_value, "hasRelyOnNode")
         if results:
             depth += 1
@@ -334,9 +341,9 @@ class SearchOperate:
         return result
 
     def extend_child_node_func(self, nodes, node_value, depth):
-        nodes.setdefault("value", node_value)
-        nodes.setdefault("depth", depth)
-        nodes.setdefault("child", [])
+        nodes["value"] = node_value
+        nodes["depth"] = depth
+        nodes["child"] = []
         results = self.search_node(node_value, "hasChildNode")
         if results:
             depth += 1
@@ -352,9 +359,9 @@ class SearchOperate:
         return result
 
     def extend_parent_node_func(self, nodes, node_value, depth):
-        nodes.setdefault("value", node_value)
-        nodes.setdefault("depth", depth)
-        nodes.setdefault("child", [])
+        nodes["value"] = node_value
+        nodes["depth"] = depth
+        nodes["child"] = []
         results = self.search_node(node_value, "hasParentNode")
         if results:
             depth += 1
@@ -372,9 +379,9 @@ class SearchOperate:
         return result
 
     def extend_related_node_func(self, nodes, node_value, depth, collection):
-        nodes.setdefault("value", node_value)
-        nodes.setdefault("depth", depth)
-        nodes.setdefault("child", [])
+        nodes["value"] = node_value
+        nodes["depth"] = depth
+        nodes["child"] = []
         results = self.search_node(node_value, "hasRelateNode")
         if results:
             for result in results:
