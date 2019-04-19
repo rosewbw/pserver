@@ -1,12 +1,17 @@
 from flask import Flask, request, jsonify
 from graph.knowledgeGraph import KnowledgeGraph
 from retrieved.searchManager import SearchManager
+from learningPath import LearningPathSponsor
+from learningPath.utils.skill_mapper import SkillMapper
+
+import pandas as pd
 import jieba
 import json
 
 app = Flask(__name__)
 kg = KnowledgeGraph()
 search_manager = SearchManager()
+learning_path_sponsor = LearningPathSponsor()
 
 @app.route('/uploadMaterial', methods=['POST'])
 def upload_material():
@@ -281,6 +286,39 @@ def get_Acourse():
 #         lesson_data = json.loads(request.data)
 #         kg.create_lesson_instance(lesson_data)
 #     return '创建课程成功'
+
+LEARNING_PATH_RECOMMENDATION_CONFIG = {
+    'ASSISTment2009-2010': {
+        'skill_data_path': 'learningPath/utils/sorted_skill.csv',
+        'skill_name_column': 'skill_name_cn',
+    }
+}
+@app.route('/learning-path-recommendation', methods=['POST'])
+def learning_path_recommendation_router():
+    request_data = json.loads(request.data)
+    learning_history = request_data["learningHistory"]
+    course_name = request_data["course"]
+
+    if course_name not in LEARNING_PATH_RECOMMENDATION_CONFIG:
+        return jsonify({
+            "status": "error",
+            "result": "不支持的课程！"
+        })
+    config = LEARNING_PATH_RECOMMENDATION_CONFIG[course_name]
+
+    skill_data = pd.read_csv(config["skill_data_path"], encoding='gbk')
+    skill_mapper = SkillMapper(skill_data, config["skill_name_column"])
+
+    learning_history_with_serial = [[skill_mapper.name_to_serial(learn["name"]), learn["correct"]]
+                                    for learn in learning_history
+                                    if skill_mapper.name_to_serial(learn["name"]) is not None]
+
+    recommendation_knowledge_serial = learning_path_sponsor.recommend(course_name, learning_history_with_serial)
+    recommendation_knowledge = skill_mapper.serial_to_name(recommendation_knowledge_serial)
+    return jsonify({
+        "status": "success",
+        "result": recommendation_knowledge
+    })
 
 
 if __name__ == '__main__':

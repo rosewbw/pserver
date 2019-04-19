@@ -153,6 +153,12 @@ class KnowledgeGraph:
     # 创建资源的实例
     def create_material_instance(self, data_group):  # data_group={名称、位置、关键字、描述、类型、id}
         sqlstr_INSERT_DATA_BASE = self.parse_data_property('material', data_group)
+
+        KEYS = ["_id", "url", "size", "thumbnailUrl", "language", "duration", "keyword", "description", "title", "type"]
+        for key in KEYS:
+            if key not in data_group:
+                data_group[key] = ""
+
         sqlstr_INSERT_DATA = 'material:{id} a  owl:NamedIndividual.\
                     material:{id} a basic:视频.\
                     material:{id} material:资源位置 \"{url}\".\

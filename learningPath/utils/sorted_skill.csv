@@ -1,0 +1,112 @@
+serial,skill_name,skill_id,skill_name_cn
+0,Box and Whisker,1,箱形图
+1,Circle Graph,2,饼图
+2,Histogram as Table or Graph,4,直方图
+3,Number Line,5,一维数轴
+4,Scatter Plot,8,散点图
+5,Stem and Leaf Plot,9,茎叶图
+6,Table,10,表
+7,Venn Diagram,11,韦恩图
+8,Mean,12,平均数
+9,Median,13,中位数
+10,Mode,14,众数
+11,Range,15,极差
+12,Counting Methods,16,排列组合
+13,Probability of Two Distinct Events,17,两个不同事件的概率
+14,Probability of a Single Event,18,单一事件概率
+15,Interior Angles Figures with More than 3 Sides,21,多边形的内角
+16,Interior Angles Triangle,22,三角形的内角
+17,Congruence,24,全等
+18,Complementary and Supplementary Angles,25,余角和补角
+19,Angles on Parallel Lines Cut by a Transversal,26,同位角、内错角、同旁内角
+20,Pythagorean Theorem,27,勾股定理
+21,Nets of 3D Figures,32,3D物体的展开面
+22,Unit Conversion Within a System,34,系统内的单位转换
+23,Effect of Changing Dimensions of a Shape Prportionally,35,改变尺寸对形状的影响
+24,Area Circle,39,圆的面积
+25,Circumference ,40,圆的周长
+26,Perimeter of a Polygon,42,多边形的周长
+27,Reading a Ruler or Scale,43,读取标尺或刻度
+28,Calculations with Similar Figures,46,使用相似图形计算（相似三角形等）
+29,Conversion of Fraction Decimals Percents,47,分数、小数、百分比的换算
+30,Equivalent Fractions,48,分数相等
+31,Ordering Positive Decimals,49,正小数排序
+32,Ordering Fractions,50,分数排序
+33,Ordering Integers,51,整数排序
+34,Ordering Real Numbers,53,实数排序
+35,Rounding,54,四舍五入
+36,Addition Whole Numbers,58,整数加法
+37,Division Fractions,61,分数除法
+38,Estimation,63,估算
+39,Fraction Of,64,分数应用
+40,Least Common Multiple,65,最小公倍数
+41,Multiplication Fractions,67,分数乘法
+42,Multiplication Whole Numbers,69,整数乘法
+43,Percent Of,70,百分数应用
+44,Subtraction Whole Numbers,74,整数减法
+45,Square Root,75,平方根
+46,Finding Percents,77,计算百分比
+47,Proportion,79,分数相等
+48,Scale Factor,80,缩放因子
+49,Unit Rate,81,单位费率
+50,Scientific Notation,82,科学记数法
+51,Divisibility Rules,83,可整除规律
+52,Prime Number,84,素数
+53,Absolute Value,85,绝对值1
+54,Exponents,86,指数
+55,Pattern Finding ,92,找数字规律
+56,D.4.8-understanding-concept-of-probabilities,110,理解概率
+57,Absolute Value,163,绝对值2
+58,Algebraic Simplification,165,代数简化
+59,Algebraic Solving,166,代数求解
+60,Choose an Equation from Given Information,173,从给定信息中选择方程式
+61,Intercept,190,截距
+62,Linear Equations,193,线性方程组
+63,Percent Discount,203,折扣百分比
+64,Percents,204,百分数
+65,Rate,217,速率
+66,Slope,221,斜率
+67,Multiplication and Division Positive Decimals,276,正小数的乘除法
+68,Addition and Subtraction Integers,277,整数加减法
+69,Addition and Subtraction Positive Decimals,278,正小数的加减法
+70,Multiplication and Division Integers,279,整数乘除法
+71,Addition and Subtraction Fractions,280,分数加减法
+72,Reflection,290,反射
+73,Rotations,292,旋转
+74,Translations,293,几何转换
+75,Area Irregular Figure,294,不规则图形面积
+76,Area Parallelogram,295,平行四边形面积
+77,Area Rectangle,296,矩形面积
+78,Area Trapezoid,297,梯形面积
+79,Area Triangle,298,三角形面积
+80,Surface Area Cylinder,299,圆柱表面积
+81,Surface Area Rectangular Prism,301,长方体表面积
+82,Volume Cylinder,303,圆柱体积
+83,Volume Rectangular Prism,307,长方体体积
+84,Volume Sphere,308,球体体积
+85,"Order of Operations +,-,/,* () positive reals",309,加减乘除括号在正实数计算中的顺序
+86,Order of Operations All,310,所有运算符的顺序
+87,Equation Solving Two or Fewer Steps,311,简单方程求解
+88,Equation Solving More Than Two Steps,312,复杂方程求解
+89,"Angles - Obtuse, Acute, and Right",314,钝角、锐角和直角
+90,Greatest Common Factor,317,最大公约数
+91,Computation with Real Numbers,321,实数计算
+92,Write Linear Equation from Ordered Pairs,322,从给定数对中得到线性表达式
+93,Write Linear Equation from Situation,323,从实际应用中得到线性表达式
+94,Recognize Linear Pattern,324,识别线性
+95,Write Linear Equation from Graph,325,根据图像写出线性表达式
+96,Finding Slope From Situation,331,根据实际应用得到斜率
+97,Finding Slope From Equation,333,根据表达式得到斜率
+98,Finding Slope from Ordered Pairs,334,根据有序对得到斜率
+99,Distributive Property,340,分配率
+100,Midpoint,343,中点
+101,Polynomial Factors,346,多项式因子
+102,Recognize Quadratic Pattern,348,识别二次方程的图形样式
+103,Solving Systems of Linear Equations,350,线性方程组求解
+104,Quadratic Formula to Solve Quadratic Equation,356,二次方程求解
+105,"Parts of a Polyomial, Terms, Coefficient, Monomial, Exponent, Variable",362,多项式的基本概念（系数、项、指数、变量）
+106,Interpreting Coordinate Graphs ,365,坐标图
+107,Solving for a variable,368,从表达式中得到某一变量的表示
+108,Simplifying Expressions positive exponents,371,表达式指数的简化
+109,Solving Inequalities,375,不等式求解
+110,Solving Systems of Linear Equations by Graphing,378,图解法求解线性方程组
