@@ -31,3 +31,7 @@ class KnowledgeRecommendationModel:
     def recommend(self, states):
         action = self.model.policy_action(np.expand_dims(states, axis=0), None)
         return action
+
+    def get_knowledge_demands(self, states):
+        knowledge_demands = self.model.policy_outputs(np.expand_dims(states, axis=0), None)
+        return knowledge_demands

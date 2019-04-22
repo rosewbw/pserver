@@ -36,3 +36,21 @@ class LearningPathSponsor:
         recommend_knowledge = self.knowledge_recommendation_models[course].recommend(consecutive_states)
 
         return int(recommend_knowledge)
+    
+    def get_knowledge_demands(self, course, learning_history):
+        if course not in SUPPORTED_COURSES:
+            raise RuntimeError('Unsupported course: {}'.format(course))
+
+        if (course not in self.knowledge_tracing_models) or (course not in self.knowledge_recommendation_models):
+            self._init_model(course)
+
+        knowledge_levels = self.knowledge_tracing_models[course].predict_knowledge_levels(learning_history)
+        len_knowledge_levels = len(knowledge_levels)
+        if len_knowledge_levels < 20:
+            consecutive_states = [knowledge_levels[0] for _ in range(20)]
+            consecutive_states[-len_knowledge_levels:] = knowledge_levels
+        else:
+            consecutive_states = knowledge_levels[-20:]
+        knowledge_demands = self.knowledge_recommendation_models[course].get_knowledge_demands(consecutive_states)
+
+        return knowledge_demands

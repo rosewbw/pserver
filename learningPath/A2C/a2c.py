@@ -47,6 +47,9 @@ class A2C:
         knowledge_demand = self.actor.predict(s)
         return np.random.choice(np.arange(self.act_dim), 1, p=knowledge_demand.ravel())[0]
 
+    def policy_outputs(self, s, learning_history):
+        return self.actor.predict(s)[0]
+
     def reset(self):
         pass
 

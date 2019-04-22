@@ -115,6 +115,7 @@ def search_knowledge_in_lesson():
 def search():
     search_input = json.loads(request.data)["searchInput"]
     search_options = json.loads(request.data)["searchOptions"]
+    search_dict = json.loads(request.data)["searchDict"]
     searched_ids = []
     search_patterns = [search_input]
     lesson_results = []
@@ -128,6 +129,10 @@ def search():
             "status": "false",
             "message": "No SearchOptions!"
         })
+
+    jieba.initialize()
+    for word in search_dict:
+        jieba.suggest_freq(word, True)
 
     for pattern in jieba.cut_for_search(search_input):
         search_patterns.append(pattern)
@@ -318,6 +323,40 @@ def learning_path_recommendation_router():
     return jsonify({
         "status": "success",
         "result": recommendation_knowledge
+    })
+
+
+@app.route('/knowledge-demands', methods=['POST'])
+def get_knowledge_demands():
+    request_data = json.loads(request.data)
+    learning_history = request_data["learningHistory"]
+    course_name = request_data["course"]
+
+    if course_name not in LEARNING_PATH_RECOMMENDATION_CONFIG:
+        return jsonify({
+            "status": "error",
+            "result": "不支持的课程！"
+        })
+
+    config = LEARNING_PATH_RECOMMENDATION_CONFIG[course_name]
+
+    skill_data = pd.read_csv(config["skill_data_path"], encoding='gbk')
+    skill_mapper = SkillMapper(skill_data, config["skill_name_column"])
+
+    learning_history_with_serial = [[skill_mapper.name_to_serial(learn["name"]), learn["correct"]]
+                                    for learn in learning_history
+                                    if skill_mapper.name_to_serial(learn["name"]) is not None]
+
+    """
+    knowledge_demands_list: [ demand, demand, ...]
+    knowledge_demands: { knowledge_name: demand, ... }
+    """
+    knowledge_demands_list = learning_path_sponsor.get_knowledge_demands(course_name, learning_history_with_serial)
+    knowledge_demands = {skill_mapper.serial_to_name(serial): float(demand)
+                         for serial, demand in enumerate(knowledge_demands_list)}
+    return jsonify({
+        "status": "success",
+        "result": knowledge_demands
     })
 
 
