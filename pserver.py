@@ -1,16 +1,20 @@
 from flask import Flask, request, jsonify
 from graph.knowledgeGraph import KnowledgeGraph
 from retrieved.searchManager import SearchManager
+from retrieved.search_manager_v2 import SearchManagerV2, SearchResult
+from custom_types import EducationalResourceType
 from learningPath import LearningPathSponsor
 from learningPath.utils.skill_mapper import SkillMapper
 
 import pandas as pd
 import jieba
 import json
+import time
 
 app = Flask(__name__)
 kg = KnowledgeGraph()
 search_manager = SearchManager()
+search_manager_v2 = SearchManagerV2()
 learning_path_sponsor = LearningPathSponsor()
 
 @app.route('/uploadMaterial', methods=['POST'])
@@ -113,11 +117,26 @@ def search_knowledge_in_lesson():
 
 @app.route('/search', methods=['POST'])
 def search():
+    def _reinit_jieba(dict):
+        jieba.initialize()
+        for word in dict:
+            jieba.suggest_freq(word, True)
+
+    CALCULATE_TIME = True
+    if CALCULATE_TIME:
+        time_collector = {
+            "knowledge": [],
+            "lesson": [],
+            "kunit": [],
+            "mcourse": [],
+            "acourse": [],
+        }
+
     search_input = json.loads(request.data)["searchInput"]
     search_options = json.loads(request.data)["searchOptions"]
     search_dict = json.loads(request.data)["searchDict"]
     searched_ids = []
-    search_patterns = [search_input]
+    search_patterns_set = {search_input}
     lesson_results = []
     knowledge_results = []
     kunit_results = []
@@ -130,17 +149,22 @@ def search():
             "message": "No SearchOptions!"
         })
 
-    jieba.initialize()
-    for word in search_dict:
-        jieba.suggest_freq(word, True)
+    _reinit_jieba(search_dict)
 
     for pattern in jieba.cut_for_search(search_input):
-        search_patterns.append(pattern)
+        search_patterns_set.add(pattern)
 
     # 按长度降序排列
+    search_patterns = list(search_patterns_set)
     search_patterns.sort(key=lambda ele: len(ele), reverse=True)
+
     for option in search_options:
         for search_pattern in search_patterns:
+
+            # 计算搜索实际时间
+            if CALCULATE_TIME:
+                start_time = time.clock()
+
             if option == 'lesson':
                 lesson_result = search_manager.search_lesson_info(search_pattern, searched_ids)
                 if lesson_result:
@@ -183,6 +207,15 @@ def search():
                     searched_ids.append(item)
                     acourse_results.append(search_manager.get_direct_resources_with_acourse(item))
 
+            if CALCULATE_TIME:
+                end_time = time.clock()
+                time_collector[option].append(round(end_time - start_time, 2))
+
+    if CALCULATE_TIME:
+        print(search_options)
+        print(search_patterns)
+        print(time_collector)
+
     return jsonify({
         "status": "success",
         "result": {
@@ -194,6 +227,56 @@ def search():
         }
     })
 
+
+@app.route('/search-v2', methods=['POST'])
+def search_v2():
+    def _reinit_jieba(dict):
+        jieba.initialize()
+        for word in dict:
+            jieba.suggest_freq(word, True)
+
+    def _get_keywords_from(input):
+        keywords_set = {input}
+
+        for keyword in jieba.cut_for_search(input):
+            keywords_set.add(keyword)
+
+        # 按长度降序排列
+        keywords = list(keywords_set)
+        keywords.sort(key=lambda ele: len(ele), reverse=True)
+
+        return keywords
+
+    search_input = json.loads(request.data)["searchInput"]
+    resource_types = [EducationalResourceType(value) for value in json.loads(request.data)["resourceTypes"]]
+    search_dict = json.loads(request.data)["searchDict"]
+
+    result = SearchResult()
+
+    _reinit_jieba(search_dict)
+    keywords = _get_keywords_from(search_input)
+
+    for keyword in keywords:
+        single_result = search_manager_v2.search(keyword, {"resource_types": resource_types}, result)
+        result.merge(single_result)
+
+    return jsonify({
+        "status": "success",
+        "result": result.to_json(),
+    })
+
+@app.route('/lessons', methods=['GET'])
+def get_lessons_router_v2():
+    search_result = SearchResult()
+    for type in EducationalResourceType.getBasicTypes():
+        resource_ids = request.args.get(type.value + "s").split(",")
+        if len(resource_ids) > 0:
+            search_result.merge(search_manager_v2.get_lessons_by_resources(type, resource_ids))
+
+    return jsonify({
+        "status": "success",
+        "result": search_result.get(resource_type=EducationalResourceType.lesson),
+    })
 
 # 根据 id 获取课程
 # 返回值：{

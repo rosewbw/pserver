@@ -1,10 +1,35 @@
+from retrieved.educational_ontology_search_query import EducationalOntologySearchQuery
+from custom_types import EducationalResourceType
 from SPARQLWrapper import SPARQLWrapper, JSON, POST
 from retrieved.tree import Node
 
+import time
+
+CALCULATE_TIME = True
+
 
 class SearchOperate:
-    # SearchOperate 用于语义相似度的计算
-    def __init__(self, kg_name, root_knowledge_id):
+    """ SearchOperate 用于语义相似度的计算 """
+
+    @classmethod
+    def get_root_knowledge_id(cls, lesson_id):
+        root_knowledge_ids = EducationalOntologySearchQuery() \
+            .set_query_resource_type(EducationalResourceType.lesson) \
+            .set_query_id(lesson_id) \
+            .set_result_resource_type(EducationalResourceType.root_knowledge) \
+            .set_result_data_type(EducationalOntologySearchQuery.ResultDataType.id) \
+            .exec()
+
+        if len(root_knowledge_ids) <= 0:
+            raise RuntimeError('找不到 root_knowledge_id!')
+
+        return root_knowledge_ids[0]
+
+    def __init__(self, kg_name):
+        if CALCULATE_TIME:
+            self.search_node_func_count = 0
+            start_time = time.clock()
+
         self.sqlstr_PREFIX = """
         PREFIX : <http://www.semanticweb.org/wbw/ontologies/2018/4/basic#> 
         PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
@@ -20,11 +45,17 @@ class SearchOperate:
         PREFIX teacher: <http://www.semanticweb.org/wbw/ontologies/2018/4/teacher#> 
         PREFIX student: <http://www.semanticweb.org/wbw/ontologies/2018/4/student#> 
                 """
+        root_knowledge_id = SearchOperate.get_root_knowledge_id(kg_name)
+
         self.sparql = SPARQLWrapper("http://localhost:3030/basic/query",
                                     updateEndpoint="http://localhost:3030/basic/update")
         self.root = None
         self.kg_name = kg_name
         self.get_kg_from_server(root_knowledge_id)
+
+        if CALCULATE_TIME:
+            end_time = time.clock()
+            print("SearchOperate.__init__({}) use time: {:.2f}s".format(kg_name, end_time - start_time))
 
     def get_kg_from_server(self, root_knowledge_id):
         root = Node(root_knowledge_id, 1)
@@ -45,6 +76,19 @@ class SearchOperate:
         return parent_node
 
     def search_node(self, node, search_type):
+        """
+        输入要搜索的中心 knowledge node 和关系类型，返回对应关系的 id 数组
+
+        Args:
+            node: 中心知识点 node
+            search_type: 知识点关系
+
+        Returns:
+            knowledge_ids(list): 对应关系的知识点 id 数组
+        """
+        if CALCULATE_TIME:
+            self.search_node_func_count += 1
+
         sqlstr_SELECT = """
                 SELECT ?knowledge_id
                 """
@@ -171,53 +215,53 @@ class SearchOperate:
         sim_relativity = 0
         return sim_relativity
 
-    def calculate_sim(self, node1, extend_ndoes):
+    def calculate_sim(self, node1, extend_nodes):
         result = []
         result.append({
             'knowledge_id': node1.get_value(),
             'similarity': 1
         })
-        for node in extend_ndoes:
-            children = extend_ndoes[node]["child"]
-            if len(children) == 0:
+        for relationship in extend_nodes:
+            extend_knowledges = extend_nodes[relationship]["child"]
+            if len(extend_knowledges) == 0:
                 continue
             else:
-                if node == "brother" or node == "synonym":
-                    for child in children:
-                        if node1.get_value() == child["knowledge_id"]:
+                if relationship == "brother" or relationship == "synonym":
+                    for knowledge in extend_knowledges:
+                        if node1.get_value() == knowledge["knowledge_id"]:
                             continue
                         else:
-                            n2 = self.get_tree_node(child["knowledge_id"])
+                            n2 = self.get_tree_node(knowledge["knowledge_id"])
                             sim = self.calculate_sim_distance(node1, n2) * 0.7 + 0.5 * 0.3
                             if sim >= 0.8:
                                 temp = {
-                                    "knowledge_id": child["knowledge_id"],
+                                    "knowledge_id": knowledge["knowledge_id"],
                                     "similarity": sim,
                                 }
                                 result.append(temp)
                 else:
-                    if node == "child":
-                        self.calculate_sim_func(result, node1, children, 0.7)
-                    if node == "parent":
-                        self.calculate_sim_func(result, node1, children, 0.7)
-                    if node == "relyon" or node == "berelyon":
-                        self.calculate_sim_func(result, node1, children, 0.8)
-                    if node == "related":
-                        self.calculate_sim_func(result, node1, children, 0.6)
+                    if relationship == "child":
+                        self.calculate_sim_func(result, node1, extend_knowledges, 0.7)
+                    if relationship == "parent":
+                        self.calculate_sim_func(result, node1, extend_knowledges, 0.7)
+                    if relationship == "relyon" or relationship == "berelyon":
+                        self.calculate_sim_func(result, node1, extend_knowledges, 0.8)
+                    if relationship == "related":
+                        self.calculate_sim_func(result, node1, extend_knowledges, 0.6)
         return result
 
-    def calculate_sim_func(self, result, node1, nodes, degree):
-        for child in nodes:
+    def calculate_sim_func(self, result, node1, extend_knowledges, degree):
+        for knowledge in extend_knowledges:
             temp = {
-                "knowledge_id": child["value"]
+                "knowledge_id": knowledge["value"]
             }
-            n2 = self.get_tree_node(child["value"])
-            sim = self.calculate_sim_distance(node1, n2) * 0.7 + pow(degree, child["depth"]) * 0.3
+            n2 = self.get_tree_node(knowledge["value"])
+            sim = self.calculate_sim_distance(node1, n2) * 0.7 + pow(degree, knowledge["depth"]) * 0.3
             if sim >= 0.8:
                 temp["similarity"] = sim
                 result.append(temp)
-            if len(child) == 3:
-                self.calculate_sim_func(result, node1, child["child"], degree)
+            if len(knowledge) == 3:
+                self.calculate_sim_func(result, node1, knowledge["child"], degree)
         return
 
     def search_related_nodes(self, node1, node2):
@@ -243,6 +287,9 @@ class SearchOperate:
         if node is None:
             return
 
+        if CALCULATE_TIME:
+            start_time = time.clock()
+
         result = {
             "synonym": self.extend_synonym_node(node),
             "brother": self.extend_brother_node(node),
@@ -253,6 +300,11 @@ class SearchOperate:
             "parent": self.extend_parent_node(node),
             "child": self.extend_child_node(node),
         }
+
+        if CALCULATE_TIME:
+            end_time = time.clock()
+            print("extend_node 耗时：{:.2f}s".format(end_time - start_time))
+
         return result
 
     def extend_synonym_node(self, node):
@@ -399,6 +451,9 @@ class SearchOperate:
         return
 
     def get_result(self, knowledge_id):
+        if CALCULATE_TIME:
+            start_time = time.clock()
+
         knowledge_node = self.get_tree_node(knowledge_id)
         knowledge_extend_node = self.extend_node(knowledge_node)
         all_collection = self.calculate_sim(knowledge_node, knowledge_extend_node)
@@ -406,6 +461,12 @@ class SearchOperate:
         sorted_collection = sorted(all_collection, key=lambda c: c['similarity'], reverse=True)
         # 结果去重
         result = self._remove_duplicate(sorted_collection)
+
+        if CALCULATE_TIME:
+            end_time = time.clock()
+            print('search_operate.get_result({}) 运行时长：{:.2f}s'.format(knowledge_id, end_time - start_time))
+            print('search_node 运行次数：{}'.format(self.search_node_func_count))
+
         return result
 
     def _remove_duplicate(self, dict_list):

@@ -6,7 +6,7 @@ class Node:
         self.child_list = []
         self.parent = parent
         self.weight = 1
-        # self.update_child_weight()
+        # self._update_child_weight()
 
     def add_child(self, node):
         self.child_list.append(node)
@@ -36,10 +36,10 @@ class Node:
     def get_weight(self):
         return self.weight
 
-    def set_value(self,value):
+    def set_value(self, value):
         self.value = value
 
-    def set_depth(self,depth):
+    def set_depth(self, depth):
         self.depth = depth
         self.update_child_weight()
 
@@ -52,4 +52,4 @@ class Node:
     def update_child_weight(self):
         children = self.child_list
         for child in children:
-            child.update_weight()
+            child._update_weight()

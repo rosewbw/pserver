@@ -1,6 +1,8 @@
 from SPARQLWrapper import SPARQLWrapper, JSON
 from retrieved.searchOperate import SearchOperate
 
+import time
+
 
 class SearchManager:
     # SearchManager 用于检索的管理
@@ -283,14 +285,32 @@ class SearchManager:
         return result
 
     # 获取规定课程内与某知识点匹配的所有资源
-    def get_search_result(self, lesson_id, knowledge_id):
-        # 获取课程的知识体系
-        root_knowledge_id = self.get_root_knowledge(lesson_id)
-        search_operate = SearchOperate(lesson_id, root_knowledge_id)
+    def get_search_result(self, lesson_id, knowledge_id, CALCULATE_TIME=True):
+        if CALCULATE_TIME:
+            start_time = time.clock()
+
+        search_operate = SearchOperate(lesson_id)
+        if CALCULATE_TIME:
+            after_init_search_operate_time = time.clock()
+
         # 检索所有匹配的知识点
         knowledge_collection = search_operate.get_result(knowledge_id)
+        if CALCULATE_TIME:
+            after_search_knowledge_time = time.clock()
+
         # 检索知识点下的教学单元、课时和资源
         result = self.get_full_info_under_knowledges(knowledge_collection)
+        if CALCULATE_TIME:
+            after_get_knowledge_info_time = time.clock()
+
+        if CALCULATE_TIME:
+            print('''
+初始化 SearchOperate 用时 {:.2f}s
+检索所有匹配知识点用时 {:.2f}s
+检索知识点下的资源用时 {:.2f}s'''.format(after_init_search_operate_time - start_time,
+                              after_search_knowledge_time - after_init_search_operate_time,
+                              after_get_knowledge_info_time - after_search_knowledge_time))
+
         return result
 
     def get_root_knowledge(self, lesson_id):

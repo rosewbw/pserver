@@ -1,6 +1,6 @@
 from SPARQLWrapper import SPARQLWrapper, JSON, POST
 import re
-import types
+import custom_types
 
 
 class KnowledgeGraph:
